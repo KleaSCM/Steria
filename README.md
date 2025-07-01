@@ -166,6 +166,217 @@ Traditional version control systems require you to think about:
 
 Steria eliminates all of that. You just work, and when you're done, you type `done` and sign it. The system handles everything else intelligently.
 
+
+### FAST! 
+
+```
+/steria commit "Test commit with optimizations" - KleaSCM
+🚀 Starting optimized commit process...
+📝 Found 103 changed files
+🔐 Message cryptographically signed by: - KleaSCM
+✅ Created commit: 29dc9beb
+⚡ Performance optimized with concurrent processing!
+Profiling completed in 13.749132ms
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 1
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 2025-07-01T18:21:36Z
+
+Operation Timings:
+  get_changes: avg=6.019313ms, min=6.019313ms, max=6.019313ms, count=1
+  create_commit: avg=6.460626ms, min=6.460626ms, max=6.460626ms, count=1
+
+
+╭─📁 …/Steria on 🌸 main  
+╰─➤
+```
+
+
+```
+╰─➤ 
+./steria done "Ultra-fast done test" - KleaSCM
+🚀 Starting Steria ULTRA-FAST done process...
+📝 Found 69 changed files
+🔐 Message cryptographically signed by: - KleaSCM
+✅ Created commit: c2bc3503
+🎯 ULTRA-FAST DONE! Everything is committed and synced.
+⚡ Performance optimized with concurrent processing and caching!
+💫 You can now forget about it - out of sight, out of mind!
+Profiling completed in 14.332982ms
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 1
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 2025-07-01T18:21:40Z
+
+Operation Timings:
+  get_changes: avg=5.86408ms, min=5.86408ms, max=5.86408ms, count=1
+  create_commit: avg=7.197384ms, min=7.197384ms, max=7.197384ms, count=1
+
+
+╭─📁 …/Steria on 🌸 main  
+╰─➤
+```
+
+
+```
+🚀 Merging branch with optimized processing...
+✅ Merged branch 'test-branch' into current branch (signed by KleaSCM)!
+⚡ Performance optimized with concurrent processing!
+Profiling completed in 137.439µs
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 0
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 0001-01-01T00:00:00Z
+
+Operation Timings:
+```
+
+```
+🚀 Pulling version with optimized processing...
+✅ Pulled version 'v1.0.0' of project 'test-project' (signed by KleaSCM)!
+⚡ Performance optimized with concurrent processing!
+Profiling completed in 127.28µs
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 0
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 0001-01-01T00:00:00Z
+
+Operation Timings:
+```
+
+```
+🚀 Starting optimized sync process...
+Profiling completed in 131.638µs
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 0
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 0001-01-01T00:00:00Z
+
+Operation Timings:
+
+Error: no remote configured for this repository
+Usage:
+  steria sync [flags]
+
+Flags:
+  -h, --help   help for sync
+```
+
+```
+✅ Project 'my-new-project' added successfully!
+🔐 Signed by: - KleaSCM
+⚡ Performance optimized with concurrent processing!
+Profiling completed in 1.224038ms
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 0
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 0001-01-01T00:00:00Z
+
+Operation Timings:
+```
+
+
+```
+🚀 Deleting project with optimized processing...
+✅ Project 'my-new-project' deleted successfully!
+🔐 Signed by: - KleaSCM
+⚡ Performance optimized with concurrent processing!
+Profiling completed in 1.249597ms
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 0
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 0001-01-01T00:00:00Z
+
+Operation Timings:
+```
+
+
+```
+🚀 Cloning repository with optimized processing...
+✅ Cloned repository from 'https://github.com/example/repo.git' into 'test-clone-dir'!
+⚡ Performance optimized with concurrent processing!
+Profiling completed in 13.045µs
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 0
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 0001-01-01T00:00:00Z
+
+Operation Timings:
+```
+
+
+```
+🚀 Renaming branch with optimized processing...
+✅ Renamed branch 'test-branch' to 'test-branch-renamed'
+⚡ Performance optimized with concurrent processing!
+Profiling completed in 249.28µs
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 0
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 0001-01-01T00:00:00Z
+
+Operation Timings:
+```
+
+
+```
+🚀 Deleting branch with optimized processing...
+Profiling completed in 137.299µs
+=== Steria Performance Stats ===
+Files Processed: 0
+Bytes Processed: 0 MB
+Commits Created: 0
+Branches Created: 0
+Cache Hit Rate: 0.00%
+Last Operation: 0001-01-01T00:00:00Z
+
+Operation Timings:
+
+Error: cannot delete the currently checked-out branch: test-branch-renamed
+Usage:
+  steria delete-branch [name] [flags]
+
+Flags:
+  -h, --help   help for delete-branch
+
+Error: cannot delete the currently checked-out branch: test-branch-renamed
+```
+
+
+
+
+
+
+
+
+
 ## Contributing
 
 This is a work in progress! The goal is to create the most developer-friendly version control system ever built.
