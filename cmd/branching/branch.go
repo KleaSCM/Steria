@@ -51,6 +51,11 @@ func runBranch(name string) error {
 		return fmt.Errorf("failed to create branches dir: %w", err)
 	}
 
+	// Ensure parent directory for branch file exists (for branch names with slashes)
+	if err := os.MkdirAll(filepath.Dir(branchFile), 0755); err != nil {
+		return fmt.Errorf("failed to create branch parent dir: %w", err) //so fucking annoying
+	}
+
 	// If branch file doesn't exist, create it with current HEAD
 	if _, err := os.Stat(branchFile); os.IsNotExist(err) {
 		head := repo.Head

@@ -55,9 +55,24 @@ steria pull "project-name" v1.2.3 - KleaSCM
 # Check status
 steria status
 
+## Branch Management
+
+```bash
+# Create a new branch
+steria add-branch feature/new-branch
+
+# Switch to an existing branch
+steria switch-branch feature/new-branch
+
+# Delete a branch (cannot delete the current branch)
+steria delete-branch feature/old-branch
+
+# Rename a branch
+steria rename-branch old-name new-name
+``` 
+
 # When you're done working
 steria done "feat: added a thing" - KleaSCM
-```
 
 ## The Magic of `done`
 
@@ -128,8 +143,11 @@ sudo cp steria /usr/local/bin/
 - `done "message" - signer` - The magical command that does everything
 - `clone [url] [dir]` - Clone a git repository
 - `commit "message" - signer` - Create a manual commit
-- `branch [name]` - Create or switch to a branch
-- `branch [name] --delete` - Delete a branch
+- `add-branch [name]` - Create a new branch
+- `switch-branch [name]` - Switch to an existing branch
+- `delete-branch [name]` - Delete a branch
+- `rename-branch [old-name] [new-name]` - Rename a branch
+- `branch [name]` - Legacy: Create or switch to a branch
 - `merge "project name" - signer` - Merge a project/branch
 - `pull "project name" version - signer` - Pull a specific version
 - `add "project name" - signer` - Add a new project
@@ -154,4 +172,5 @@ This is a work in progress! The goal is to create the most developer-friendly ve
 
 ## License
 
-MIT License - feel free to use this however you want! 
+MIT License - feel free to use this however you want!
+
