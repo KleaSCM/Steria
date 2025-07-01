@@ -66,7 +66,12 @@ func runBranch(name string) error {
 	if err := os.WriteFile(filepath.Join(cwd, ".steria", "branch"), []byte(name), 0644); err != nil {
 		return fmt.Errorf("failed to switch branch: %w", err)
 	}
-	branchHead, _ := os.ReadFile(branchFile)
+
+	// Read the branch's HEAD and update the main HEAD
+	branchHead, err := os.ReadFile(branchFile)
+	if err != nil {
+		return fmt.Errorf("failed to read branch HEAD: %w", err)
+	}
 	if err := os.WriteFile(filepath.Join(cwd, ".steria", "HEAD"), branchHead, 0644); err != nil {
 		return fmt.Errorf("failed to update HEAD: %w", err)
 	}
