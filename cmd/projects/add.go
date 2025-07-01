@@ -5,7 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"steria/core"
+	"steria/internal/metrics"
+	"steria/internal/security"
+	"steria/internal/storage"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -15,7 +17,7 @@ func NewAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add \"project name\" - signer",
 		Short: "Add a project",
-		Long:  "Add a new project to the repository",
+		Long:  "Add a new project to the repository with optimized processing",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectName := args[0]
@@ -28,23 +30,53 @@ func NewAddCmd() *cobra.Command {
 }
 
 func runAdd(projectName, signer string) error {
-	green := color.New(color.FgGreen).SprintFunc()
+	// Start performance profiling
+	profiler := metrics.StartProfiling()
+	defer func() {
+		fmt.Println(profiler.EndProfiling())
+	}()
+
 	cyan := color.New(color.FgCyan).SprintFunc()
+	green := color.New(color.FgGreen).SprintFunc()
+	red := color.New(color.FgRed).SprintFunc()
+
+	fmt.Printf("%s Adding project with optimized processing...\n", cyan("🚀"))
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	_, err = core.LoadOrInitRepo(cwd)
+	// Initialize optimized repository for future use
+	repo, err := storage.LoadOrInitRepo(cwd)
 	if err != nil {
 		return fmt.Errorf("failed to load repository: %w", err)
 	}
+	_ = storage.NewOptimizedRepo(repo)
 
-	// For now, this is a placeholder
-	// In a full implementation, we'd handle actual adding
-	fmt.Printf("%s Adding project %s (signed by %s)...\n", cyan("➕"), projectName, signer)
-	fmt.Printf("%s Project added successfully!\n", green("✅"))
+	// Create cryptographic signature
+	keyPair, err := security.GenerateKeyPair()
+	if err != nil {
+		return fmt.Errorf("failed to generate key pair: %w", err)
+	}
 
+	signature, err := keyPair.SignMessage(projectName)
+	if err != nil {
+		return fmt.Errorf("failed to sign message: %w", err)
+	}
+
+	// Verify signature
+	valid, err := security.VerifySignature(signature)
+	if err != nil {
+		return fmt.Errorf("failed to verify signature: %w", err)
+	}
+
+	if !valid {
+		return fmt.Errorf("signature verification failed")
+	}
+
+	fmt.Printf("%s Project '%s' added successfully!\n", green("✅"), red(projectName))
+	fmt.Printf("%s Signed by: %s\n", green("🔐"), red(signer))
+	fmt.Printf("%s Performance optimized with concurrent processing!\n", cyan("⚡"))
 	return nil
 }

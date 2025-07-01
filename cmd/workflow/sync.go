@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"steria/internal/metrics"
 	"steria/internal/storage"
 
 	"github.com/fatih/color"
@@ -14,7 +15,7 @@ func NewSyncCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Sync with remote repository",
-		Long:  "Sync changes with the remote repository",
+		Long:  "Sync with remote repository using optimized processing",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSync()
 		},
@@ -24,9 +25,18 @@ func NewSyncCmd() *cobra.Command {
 }
 
 func runSync() error {
+	// Start performance profiling
+	profiler := metrics.StartProfiling()
+	defer func() {
+		fmt.Println(profiler.EndProfiling())
+	}()
+
 	cyan := color.New(color.FgCyan).SprintFunc()
 	green := color.New(color.FgGreen).SprintFunc()
-	yellow := color.New(color.FgYellow).SprintFunc()
+	_ = color.New(color.FgYellow).SprintFunc()
+	red := color.New(color.FgRed).SprintFunc()
+
+	fmt.Printf("%s Starting optimized sync process...\n", cyan("🚀"))
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -38,19 +48,26 @@ func runSync() error {
 		return fmt.Errorf("failed to load repository: %w", err)
 	}
 
-	if !repo.HasRemote() {
-		fmt.Printf("%s No remote configured. Use 'clone' to set up a remote.\n", yellow("⚠️"))
-		return nil
+	// Create optimized repository
+	optRepo := storage.NewOptimizedRepo(repo)
+
+	if !optRepo.HasRemote() {
+		return fmt.Errorf("no remote configured for this repository")
 	}
 
-	fmt.Printf("%s Syncing with %s...\n", cyan("🔄"), repo.RemoteURL)
+	fmt.Printf("%s Syncing with remote: %s\n", cyan("🔄"), optRepo.RemoteURL)
 
-	// For now, this is a placeholder
-	// In a full implementation, we'd handle actual syncing
-	if err := repo.Sync(); err != nil {
-		return fmt.Errorf("sync failed: %w", err)
+	// Perform sync with optimized method
+	endOp := metrics.GlobalMetrics.StartOperation("sync")
+	err = optRepo.Sync()
+	endOp()
+
+	if err != nil {
+		fmt.Printf("%s Sync failed: %v\n", red("❌"), err)
+		return err
 	}
 
-	fmt.Printf("%s Successfully synced!\n", green("✅"))
+	fmt.Printf("%s Successfully synced with remote!\n", green("✅"))
+	fmt.Printf("%s Performance optimized with concurrent processing!\n", cyan("⚡"))
 	return nil
 }

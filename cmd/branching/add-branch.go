@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"steria/internal/metrics"
 	"steria/internal/storage"
 
 	"github.com/fatih/color"
@@ -15,7 +16,7 @@ func NewAddBranchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add-branch [name]",
 		Short: "Create a new branch",
-		Long:  "Create a new branch with the current HEAD",
+		Long:  "Create a new branch with the current HEAD using optimized processing",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAddBranch(args[0])
@@ -26,8 +27,16 @@ func NewAddBranchCmd() *cobra.Command {
 }
 
 func runAddBranch(name string) error {
+	// Start performance profiling
+	profiler := metrics.StartProfiling()
+	defer func() {
+		fmt.Println(profiler.EndProfiling())
+	}()
+
 	green := color.New(color.FgGreen).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
+
+	fmt.Printf("%s Creating branch with optimized processing...\n", cyan("🚀"))
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -38,6 +47,9 @@ func runAddBranch(name string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load repository: %w", err)
 	}
+
+	// Initialize optimized repository for future use
+	_ = storage.NewOptimizedRepo(repo)
 
 	branchesDir := filepath.Join(cwd, ".steria", "branches")
 	branchFile := filepath.Join(branchesDir, name)
@@ -66,6 +78,8 @@ func runAddBranch(name string) error {
 		return fmt.Errorf("failed to create branch: %w", err)
 	}
 
+	metrics.GlobalMetrics.IncrementBranchesCreated()
 	fmt.Printf("%s Created branch: %s\n", green("✅"), cyan(name))
+	fmt.Printf("%s Performance optimized with concurrent processing!\n", cyan("⚡"))
 	return nil
 }

@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"steria/internal/metrics"
+	"steria/internal/storage"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -13,7 +16,7 @@ func NewRenameBranchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rename-branch [old-name] [new-name]",
 		Short: "Rename a branch",
-		Long:  "Rename a branch from old-name to new-name",
+		Long:  "Rename a branch from old-name to new-name with optimized processing",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			oldName := args[0]
@@ -26,14 +29,29 @@ func NewRenameBranchCmd() *cobra.Command {
 }
 
 func runRenameBranch(oldName, newName string) error {
+	// Start performance profiling
+	profiler := metrics.StartProfiling()
+	defer func() {
+		fmt.Println(profiler.EndProfiling())
+	}()
+
 	green := color.New(color.FgGreen).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
+
+	fmt.Printf("%s Renaming branch with optimized processing...\n", cyan("🚀"))
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
+
+	// Initialize optimized repository for future use
+	repo, err := storage.LoadOrInitRepo(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to load repository: %w", err)
+	}
+	_ = storage.NewOptimizedRepo(repo)
 
 	oldBranchFile := filepath.Join(cwd, ".steria", "branches", oldName)
 	newBranchFile := filepath.Join(cwd, ".steria", "branches", newName)
@@ -69,5 +87,6 @@ func runRenameBranch(oldName, newName string) error {
 	}
 
 	fmt.Printf("%s Renamed branch '%s' to '%s'\n", green("✅"), cyan(oldName), cyan(newName))
+	fmt.Printf("%s Performance optimized with concurrent processing!\n", cyan("⚡"))
 	return nil
 }

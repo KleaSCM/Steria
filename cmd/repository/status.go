@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"steria/internal/metrics"
 	"steria/internal/storage"
 
 	"github.com/fatih/color"
@@ -14,7 +15,7 @@ func NewStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show repository status",
-		Long:  "Show the current status of the repository",
+		Long:  "Show the current status of the repository with optimized processing",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStatus()
 		},
@@ -24,10 +25,18 @@ func NewStatusCmd() *cobra.Command {
 }
 
 func runStatus() error {
+	// Start performance profiling
+	profiler := metrics.StartProfiling()
+	defer func() {
+		fmt.Println(profiler.EndProfiling())
+	}()
+
 	cyan := color.New(color.FgCyan).SprintFunc()
 	green := color.New(color.FgGreen).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
+
+	fmt.Printf("%s Checking status with optimized processing...\n", cyan("🚀"))
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -38,6 +47,9 @@ func runStatus() error {
 	if err != nil {
 		return fmt.Errorf("failed to load repository: %w", err)
 	}
+
+	// Create optimized repository
+	optRepo := storage.NewOptimizedRepo(repo)
 
 	fmt.Printf("%s Repository: %s\n", cyan("📁"), repo.Config.Name)
 	fmt.Printf("%s Branch: %s\n", cyan("🌿"), green(repo.Branch))
@@ -54,8 +66,11 @@ func runStatus() error {
 		fmt.Printf("%s Remote: %s\n", cyan("🌐"), red("none"))
 	}
 
-	// Check for changes
-	changes, err := repo.GetChanges()
+	// Check for changes with optimized method
+	endOp := metrics.GlobalMetrics.StartOperation("get_changes")
+	changes, err := optRepo.GetChangesOptimized()
+	endOp()
+
 	if err != nil {
 		return fmt.Errorf("failed to get changes: %w", err)
 	}
@@ -82,5 +97,6 @@ func runStatus() error {
 		}
 	}
 
+	fmt.Printf("%s Performance optimized with concurrent processing!\n", cyan("⚡"))
 	return nil
 }
