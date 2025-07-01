@@ -3,6 +3,7 @@ package branching
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"steria/core"
 
@@ -42,16 +43,37 @@ func runBranch(name string) error {
 		return fmt.Errorf("failed to load repository: %w", err)
 	}
 
-	// For now, just update the branch file
-	// In a full implementation, we'd handle branch switching properly
-	branchPath := fmt.Sprintf("%s/.steria/branch", cwd)
-	if err := os.WriteFile(branchPath, []byte(name), 0644); err != nil {
+	branchesDir := filepath.Join(cwd, ".steria", "branches")
+	branchFile := filepath.Join(branchesDir, name)
+
+	// Create branches dir if not exists
+	if err := os.MkdirAll(branchesDir, 0755); err != nil {
+		return fmt.Errorf("failed to create branches dir: %w", err)
+	}
+
+	// If branch file doesn't exist, create it with current HEAD
+	if _, err := os.Stat(branchFile); os.IsNotExist(err) {
+		head := repo.Head
+		if head == "" {
+			head = ""
+		}
+		if err := os.WriteFile(branchFile, []byte(head), 0644); err != nil {
+			return fmt.Errorf("failed to create branch: %w", err)
+		}
+	}
+
+	// Switch branch: update .steria/branch and .steria/HEAD
+	if err := os.WriteFile(filepath.Join(cwd, ".steria", "branch"), []byte(name), 0644); err != nil {
 		return fmt.Errorf("failed to switch branch: %w", err)
+	}
+	branchHead, _ := os.ReadFile(branchFile)
+	if err := os.WriteFile(filepath.Join(cwd, ".steria", "HEAD"), branchHead, 0644); err != nil {
+		return fmt.Errorf("failed to update HEAD: %w", err)
 	}
 
 	repo.Branch = name
-
-	fmt.Printf("%s Switched to branch: %s\n", green("✅"), cyan(name))
+	switchMsg := fmt.Sprintf("%s Switched to branch: %s\n", green("✅"), cyan(name))
+	fmt.Print(switchMsg)
 	return nil
 }
 
@@ -64,7 +86,14 @@ func runDeleteBranch(name string) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	branchFile := fmt.Sprintf("%s/.steria/branches/%s", cwd, name)
+	// Prevent deleting the current branch
+	branchPath := filepath.Join(cwd, ".steria", "branch")
+	currentBranch, _ := os.ReadFile(branchPath)
+	if string(currentBranch) == name {
+		return fmt.Errorf("cannot delete the currently checked-out branch: %s", name)
+	}
+
+	branchFile := filepath.Join(cwd, ".steria", "branches", name)
 	if err := os.Remove(branchFile); err != nil {
 		return fmt.Errorf("failed to delete branch: %w", err)
 	}
