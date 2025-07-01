@@ -1,0 +1,31 @@
+# Binaries
+steria
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# Output folders
+bin/
+obj/
+
+# Dependency directories
+vendor/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+
+# Logs
+*.log
+
+# Steria repo data
+.steria/ 
