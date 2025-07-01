@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"steria/core"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -14,10 +15,10 @@ func NewDeleteCmd() *cobra.Command {
 		Use:   "delete \"project name\" - signer",
 		Short: "Delete a project",
 		Long:  "Delete a project from the repository",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectName := args[0]
-			signer := args[1]
+			signer := strings.Join(args[1:], " ")
 			return runDelete(projectName, signer)
 		},
 	}

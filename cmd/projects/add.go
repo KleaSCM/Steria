@@ -3,6 +3,7 @@ package projects
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"steria/core"
 
@@ -15,10 +16,10 @@ func NewAddCmd() *cobra.Command {
 		Use:   "add \"project name\" - signer",
 		Short: "Add a project",
 		Long:  "Add a new project to the repository",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectName := args[0]
-			signer := args[1]
+			signer := strings.Join(args[1:], " ")
 			return runAdd(projectName, signer)
 		},
 	}

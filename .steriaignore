@@ -1,0 +1,49 @@
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+bin/
+obj/
+dist/
+
+# Dependencies
+vendor/
+node_modules/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Documentation builds
+docs/_build/
+
+# Database files
+*.db
+*.sqlite
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Cache directories
+.cache/
+cache/ 

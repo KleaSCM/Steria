@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"steria/core"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -14,10 +15,10 @@ func NewMergeCmd() *cobra.Command {
 		Use:   "merge \"project name\" - signer",
 		Short: "Merge a branch into the current branch",
 		Long:  "Merge changes from another branch into the current branch",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectName := args[0]
-			signer := args[1]
+			signer := strings.Join(args[1:], " ")
 			return runMerge(projectName, signer)
 		},
 	}

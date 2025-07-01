@@ -1,4 +1,4 @@
-# Steria 🚀
+# Steria 
 
 **Get out of the way version control that just works.**
 
@@ -22,6 +22,7 @@ Steria is a fast, modern version control system designed for developers who want
 - 📥 **Pull versions**: Pull specific versions from any project
 - 🔀 **Smart merging**: Automatic conflict resolution and merging
 - 📊 **Beautiful status**: See what's changed at a glance
+- 🚫 **Smart ignoring**: Use `.steriaignore` to exclude files and directories
 - ⚡ **Lightning fast**: Built in Go for maximum performance
 
 ## Quick Start
@@ -64,7 +65,7 @@ The `done` command is the heart of Steria:
 
 1. **Detects changes** automatically
 2. **Generates smart commit messages** based on what changed
-3. **Signs with your identity** (e.g., `- KleaSCM` )
+3. **Signs with your identity** (e.g., `- KleaSCM`)
 4. **Syncs with remote** if configured
 5. **Out of sight, out of mind** - you can forget about it!
 
@@ -73,6 +74,40 @@ The `done` command is the heart of Steria:
 steria done "Finished my work" - KleaSCM
 
 ```
+
+## Ignoring Files with .steriaignore
+
+Create a `.steriaignore` file in your repository root to specify which files and directories should be ignored by Steria:
+
+```bash
+# Build artifacts
+*.exe
+*.dll
+bin/
+obj/
+
+# Dependencies
+vendor/
+node_modules/
+
+# IDE files
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+*.tmp
+```
+
+Patterns support:
+- `*.ext` - Ignore all files with specific extension
+- `directory/` - Ignore entire directory
+- `file.txt` - Ignore specific file
+- `temp*` - Ignore files starting with "temp"
 
 ## Installation
 

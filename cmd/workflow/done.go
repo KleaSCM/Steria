@@ -23,10 +23,11 @@ func NewDoneCmd() *cobra.Command {
 - Out of sight, out of mind!
 
 Example: steria done "feat - added new feature" - KleaSCM`,
-		Args: cobra.ExactArgs(2),
+		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			message := args[0]
-			signer := args[1]
+			// Join all remaining arguments as the signer (in case it contains spaces)
+			signer := strings.Join(args[1:], " ")
 			return runDone(signer, message)
 		},
 	}

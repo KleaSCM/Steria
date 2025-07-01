@@ -3,6 +3,7 @@ package workflow
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"steria/internal/storage"
 
@@ -15,10 +16,10 @@ func NewCommitCmd() *cobra.Command {
 		Use:   "commit \"message\" - signer",
 		Short: "Create a commit",
 		Long:  "Create a commit with the current changes",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			message := args[0]
-			signer := args[1]
+			signer := strings.Join(args[1:], " ")
 			return runCommit(message, signer)
 		},
 	}

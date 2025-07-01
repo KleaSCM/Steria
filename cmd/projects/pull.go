@@ -3,6 +3,7 @@ package projects
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"steria/core"
 
@@ -15,11 +16,11 @@ func NewPullCmd() *cobra.Command {
 		Use:   "pull \"project name\" version - signer",
 		Short: "Pull a specific version from a project",
 		Long:  "Pull a specific version from a project and merge it",
-		Args:  cobra.ExactArgs(3),
+		Args:  cobra.MinimumNArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectName := args[0]
 			version := args[1]
-			signer := args[2]
+			signer := strings.Join(args[2:], " ")
 			return runPull(projectName, version, signer)
 		},
 	}

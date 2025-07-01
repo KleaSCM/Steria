@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"steria/internal/utils"
 )
 
 // Repo represents a Steria repository
@@ -304,25 +306,34 @@ func (r *Repo) getCurrentState() (map[string]string, error) {
 func (r *Repo) getWorkingState() (map[string]string, error) {
 	state := make(map[string]string)
 
-	err := filepath.Walk(r.Path, func(path string, info os.FileInfo, err error) error {
+	// Load ignore patterns
+	ignorePatterns, err := utils.LoadIgnorePatterns(r.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load ignore patterns: %w", err)
+	}
+
+	err = filepath.Walk(r.Path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
-		}
-
-		// Skip .steria directory
-		if info.IsDir() && filepath.Base(path) == ".steria" {
-			return filepath.SkipDir
-		}
-
-		// Skip directories
-		if info.IsDir() {
-			return nil
 		}
 
 		// Get relative path
 		relPath, err := filepath.Rel(r.Path, path)
 		if err != nil {
 			return err
+		}
+
+		// Check if should be ignored
+		if utils.ShouldIgnore(relPath, ignorePatterns) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
 		}
 
 		// Calculate file hash
