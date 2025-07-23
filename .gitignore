@@ -1,31 +1,39 @@
+# Author: KleaSCM
+# Email: KleaSCM@gmail.com
+# Name of the file: .gitignore
+# Description: Specifies intentionally untracked files to ignore for the Steria project.
+
 # Binaries
-steria
 *.exe
+*.exe~
 *.dll
 *.so
 *.dylib
 *.test
 
-# Output folders
-bin/
-obj/
+# Output of build tools
+/bin/
+/build/
 
 # Dependency directories
-vendor/
+/vendor/
+
+# Go workspace file
+go.work
+
+# Test results
+*.out
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*~
 
 # OS generated files
 .DS_Store
 Thumbs.db
 
-# Editor files
-.idea/
-.vscode/
-*.swp
-*.swo
-*.bak
-
-# Logs
-*.log
-
-# Steria repo data
-.steria/ 
+# Jupyter Notebooks
+.ipynb_checkpoints/
+Jupyter notebooks/*.ipynb_checkpoints/ 
