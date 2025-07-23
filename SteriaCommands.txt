@@ -1,70 +1,155 @@
+# Steria CLI Commands Reference
+# Author: KleaSCM
+# Email: KleaSCM@gmail.com
+# Description: Complete reference of all Steria CLI commands with explanations and examples
 
-Steria Command Reference
-========================
+## Repository Management Commands
 
-1. steria clone [url] [dir]
-   - Clone a repository from git into a specified directory with optimized processing.
-   - Example: steria clone https://github.com/user/repo.git my-repo
+### steria clone <repository-url>
+**Description**: Clone a remote repository to local machine
+**Usage**: Downloads and sets up a complete copy of a remote Steria repository
+**Example**: `steria clone https://github.com/user/repo.git`
 
-2. steria status
-   - Show the current status of the repository, including branch, HEAD, and changes.
-   - Example: steria status
+### steria status
+**Description**: Show the current status of the repository
+**Usage**: Displays information about the current branch, last commit, and working directory state
+**Example**: `steria status`
 
-3. steria send [username] [optional:target-subdir]
-   - Send the current directory’s contents (and .steria) to the user’s Steria directory.
-   - Example: steria send KleaSCM wallpapers
+### steria send
+**Description**: Send/push the current repository to the main Steria directory
+**Usage**: Copies the current directory contents (excluding project files) to the user's Steria directory
+**Example**: `steria send`
 
-4. steria done "message" - signer
-   - Commit, sign, and sync all changes with a magical, femme touch.
-   - Example: steria done "Initial commit" - KleaSCM
+## Workflow Commands
 
-5. steria commit "message" - signer
-   - Create a manual commit with a specific message and signer.
-   - Example: steria commit "Updated docs" - KleaSCM
+### steria commit "message" - signer
+**Description**: Create a new commit with staged changes
+**Usage**: Records changes to the repository with a descriptive message and author signature
+**Example**: `steria commit "Add new feature" KleaSCM`
 
-6. steria sync
-   - Sync with the remote repository (if configured).
-   - Example: steria sync
+### steria sync
+**Description**: Synchronize with remote repository
+**Usage**: Pulls latest changes from remote and pushes local changes
+**Example**: `steria sync`
 
-7. steria branch
-   - Create, switch, or delete a branch.
-   - Example: steria branch my-feature
+### steria done
+**Description**: Mark current task as complete
+**Usage**: Creates a commit and optionally pushes changes, marking task completion
+**Example**: `steria done`
 
-8. steria add-branch
-   - Create a new branch.
-   - Example: steria add-branch new-feature
+## Project Management Commands
 
-9. steria switch-branch
-   - Switch to an existing branch.
-   - Example: steria switch-branch main
+### steria projects add <name> <path>
+**Description**: Add a new project to Steria
+**Usage**: Registers a new project with a name and local path
+**Example**: `steria projects add my-project /path/to/project`
 
-10. steria delete-branch
-    - Delete a branch.
-    - Example: steria delete-branch old-feature
+### steria projects delete <name>
+**Description**: Remove a project from Steria
+**Usage**: Unregisters a project and optionally deletes its files
+**Example**: `steria projects delete my-project`
 
-11. steria rename-branch
-    - Rename a branch.
-    - Example: steria rename-branch old-name new-name
+### steria projects pull <name>
+**Description**: Pull latest changes for a project
+**Usage**: Updates the local copy of a project with latest changes
+**Example**: `steria projects pull my-project`
 
-12. steria merge [branch] - [signer]
-    - Merge a branch into the current branch, signed by the user.
-    - Example: steria merge feature-branch - KleaSCM
+## Branching Commands
 
-13. steria add "project name" - signer
-    - Add a new project to the repository.
-    - Example: steria add "MyProject" - KleaSCM
+### steria branch
+**Description**: List all branches in the repository
+**Usage**: Shows all available branches and highlights the current branch
+**Example**: `steria branch`
 
-14. steria delete "project name" - signer
-    - Delete a project from the repository.
-    - Example: steria delete "MyProject" - KleaSCM
+### steria add-branch <name>
+**Description**: Create a new branch
+**Usage**: Creates a new branch from the current branch
+**Example**: `steria add-branch feature-branch`
 
-15. steria pull [project name] [version] - [signer]
-    - Pull a specific version from a project.
-    - Example: steria pull MyProject v1.0 - KleaSCM
+### steria switch-branch <name>
+**Description**: Switch to a different branch
+**Usage**: Changes the working directory to the specified branch
+**Example**: `steria switch-branch main`
 
-16. steria help
-    - Show help for any command.
-    - Example: steria help status
+### steria delete-branch <name>
+**Description**: Delete a branch
+**Usage**: Removes the specified branch (cannot delete current branch)
+**Example**: `steria delete-branch old-branch`
 
----
+### steria rename-branch <old-name> <new-name>
+**Description**: Rename a branch
+**Usage**: Changes the name of an existing branch
+**Example**: `steria rename-branch old-name new-name`
+
+### steria merge <source-branch>
+**Description**: Merge changes from another branch
+**Usage**: Combines changes from the source branch into the current branch
+**Example**: `steria merge feature-branch`
+
+## History and Comparison Commands
+
+### steria log
+**Description**: Show commit history
+**Usage**: Displays a pretty, color-coded commit history with commit details
+**Example**: `steria log`
+
+### steria diff [file]
+**Description**: Show differences between file versions
+**Usage**: Displays differences between working directory and last commit, or between commits
+**Examples**: 
+- `steria diff` (show all changes)
+- `steria diff filename.txt` (show changes for specific file)
+
+### steria restore <file> [commit-hash]
+**Description**: Restore files from previous commits
+**Usage**: Restores deleted or previous versions of files from specific commits
+**Examples**:
+- `steria restore filename.txt` (restore from last commit)
+- `steria restore filename.txt abc12345` (restore from specific commit)
+
+## Configuration Commands
+
+### steria ignore [pattern]
+**Description**: Manage .steriaignore file
+**Usage**: Interactive command to add, remove, and view ignore patterns
+**Examples**:
+- `steria ignore` (show interactive menu)
+- `steria ignore *.log` (add ignore pattern)
+- `steria ignore temp/` (ignore directory)
+
+## Performance and Metrics
+
+All commands include:
+- **Performance profiling**: Shows execution time and resource usage
+- **Optimized processing**: Uses concurrent processing where applicable
+- **Detailed metrics**: Tracks files processed, bytes processed, commits created, etc.
+- **Color-coded output**: Uses emojis and colors for better user experience
+
+## File Structure
+
+Steria creates the following structure in repositories:
+```
+.steria/
+├── config.json          # Repository configuration
+├── HEAD                 # Current commit reference
+├── objects/             # Commit and file objects
+│   └── [hash]/          # Objects organized by hash
+├── index               # Staging area index
+└── state.json          # Current repository state
+```
+
+## Best Practices
+
+1. **Regular commits**: Use descriptive commit messages
+2. **Branch management**: Create feature branches for new work
+3. **Ignore patterns**: Use .steriaignore to exclude unnecessary files
+4. **Performance monitoring**: Watch the performance metrics for optimization opportunities
+5. **Backup strategy**: Use `steria send` to backup important repositories
+
+## Error Handling
+
+- All commands return appropriate error messages
+- Performance profiling shows execution details even on errors
+- Commands gracefully handle missing files or invalid states
+- Clear instructions provided for common issues
 
