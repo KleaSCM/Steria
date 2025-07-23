@@ -309,6 +309,11 @@ func (r *Repo) Sync() error {
 	return nil
 }
 
+// LoadCommit loads a commit object (public method)
+func (r *Repo) LoadCommit(hash string) (*Commit, error) {
+	return r.loadCommit(hash)
+}
+
 // getCurrentState returns the current committed state
 func (r *Repo) getCurrentState() (map[string]string, error) {
 	if r.Head == "" {
