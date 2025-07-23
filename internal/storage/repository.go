@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"steria/internal/metrics"
 	"steria/internal/utils"
 )
 
@@ -167,6 +168,21 @@ func initRepo(path string) (*Repo, error) {
 
 	repo.Head = initialCommit.Hash
 
+	// --- Steria enhancement: Immediately add all files (except ignored) in the first commit ---
+	// Check for untracked files and commit them right away
+	changes, err := repo.GetChanges()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for untracked files: %w", err)
+	}
+	if len(changes) > 0 {
+		commit, err := repo.CreateCommit("Add all files on repo initialization", "KleaSCM")
+		if err != nil {
+			return nil, fmt.Errorf("failed to add all files on initialization: %w", err)
+		}
+		repo.Head = commit.Hash
+	}
+	// --- End enhancement ---
+
 	return repo, nil
 }
 
@@ -236,11 +252,23 @@ func (r *Repo) CreateCommit(message, author string) (*Commit, error) {
 	}
 
 	// Add files to commit
+	var totalBytes int64
 	for _, change := range changes {
 		if change.Type != ChangeTypeDeleted {
 			commit.Files = append(commit.Files, change.Path)
+			// Get file size for metrics
+			filePath := filepath.Join(r.Path, change.Path)
+			info, err := os.Stat(filePath)
+			if err == nil {
+				totalBytes += info.Size()
+			}
 		}
 	}
+
+	// Update performance metrics
+	metrics.GlobalMetrics.IncrementFilesProcessed(int64(len(commit.Files)))
+	metrics.GlobalMetrics.IncrementBytesProcessed(totalBytes)
+	metrics.GlobalMetrics.IncrementCommitsCreated()
 
 	// Generate commit hash
 	commitData, err := json.Marshal(commit)
