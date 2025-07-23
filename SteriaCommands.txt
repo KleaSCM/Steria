@@ -1,0 +1,70 @@
+
+Steria Command Reference
+========================
+
+1. steria clone [url] [dir]
+   - Clone a repository from git into a specified directory with optimized processing.
+   - Example: steria clone https://github.com/user/repo.git my-repo
+
+2. steria status
+   - Show the current status of the repository, including branch, HEAD, and changes.
+   - Example: steria status
+
+3. steria send [username] [optional:target-subdir]
+   - Send the current directory’s contents (and .steria) to the user’s Steria directory.
+   - Example: steria send KleaSCM wallpapers
+
+4. steria done "message" - signer
+   - Commit, sign, and sync all changes with a magical, femme touch.
+   - Example: steria done "Initial commit" - KleaSCM
+
+5. steria commit "message" - signer
+   - Create a manual commit with a specific message and signer.
+   - Example: steria commit "Updated docs" - KleaSCM
+
+6. steria sync
+   - Sync with the remote repository (if configured).
+   - Example: steria sync
+
+7. steria branch
+   - Create, switch, or delete a branch.
+   - Example: steria branch my-feature
+
+8. steria add-branch
+   - Create a new branch.
+   - Example: steria add-branch new-feature
+
+9. steria switch-branch
+   - Switch to an existing branch.
+   - Example: steria switch-branch main
+
+10. steria delete-branch
+    - Delete a branch.
+    - Example: steria delete-branch old-feature
+
+11. steria rename-branch
+    - Rename a branch.
+    - Example: steria rename-branch old-name new-name
+
+12. steria merge [branch] - [signer]
+    - Merge a branch into the current branch, signed by the user.
+    - Example: steria merge feature-branch - KleaSCM
+
+13. steria add "project name" - signer
+    - Add a new project to the repository.
+    - Example: steria add "MyProject" - KleaSCM
+
+14. steria delete "project name" - signer
+    - Delete a project from the repository.
+    - Example: steria delete "MyProject" - KleaSCM
+
+15. steria pull [project name] [version] - [signer]
+    - Pull a specific version from a project.
+    - Example: steria pull MyProject v1.0 - KleaSCM
+
+16. steria help
+    - Show help for any command.
+    - Example: steria help status
+
+---
+
