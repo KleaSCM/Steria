@@ -43,6 +43,7 @@ When you're done working, just type "done" and sign it. That's it.`,
 	rootCmd.AddCommand(branching.NewSwitchBranchCmd())
 	rootCmd.AddCommand(branching.NewDeleteBranchCmd())
 	rootCmd.AddCommand(branching.NewRenameBranchCmd())
+	rootCmd.AddCommand(branching.NewBranchGraphCmd())
 
 	// Add project commands
 	rootCmd.AddCommand(projects.NewPullCmd())
