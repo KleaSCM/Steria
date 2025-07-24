@@ -29,6 +29,7 @@ When you're done working, just type "done" and sign it. That's it.`,
 	rootCmd.AddCommand(repository.NewDiffCmd())
 	rootCmd.AddCommand(repository.NewRestoreCmd())
 	rootCmd.AddCommand(repository.NewIgnoreCmd())
+	rootCmd.AddCommand(repository.NewSearchCmd())
 
 	// Add workflow commands
 	rootCmd.AddCommand(workflow.NewDoneCmd())

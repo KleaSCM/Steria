@@ -15,6 +15,10 @@ import (
 	"steria/internal/metrics"
 	"steria/internal/storage"
 
+	"bytes"
+	"path/filepath"
+
+	"github.com/alecthomas/chroma/quick"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -140,16 +144,35 @@ func showFileDiffWithMode(repo *storage.Repo, filePath string, commit *storage.C
 
 	added, removed, changed = 0, 0, 0
 	if sideBySide {
-		added, removed, changed = sideBySideDiff(commitContent, currentContent, contextLines)
+		added, removed, changed = sideBySideDiff(commitContent, currentContent, contextLines, filePath)
 	} else {
-		added, removed, changed = showInlineDiff(commitContent, currentContent, contextLines)
+		added, removed, changed = showInlineDiff(commitContent, currentContent, contextLines, filePath)
 	}
 	fmt.Printf("\nSummary: %s lines added, %s lines removed, %s lines changed\n", green(fmt.Sprint(added)), red(fmt.Sprint(removed)), yellow(fmt.Sprint(changed)))
 
 	return
 }
 
-func showInlineDiff(oldLines, newLines []string, contextLines int) (added, removed, changed int) {
+// highlightLineWithChroma applies syntax highlighting to a single line using Chroma for the given file extension.
+func highlightLineWithChroma(line, filePath string) string {
+	var buf bytes.Buffer
+	lexer := ""
+	ext := filepath.Ext(filePath)
+	if ext != "" {
+		lexer = ext[1:] // remove dot
+	}
+	if lexer == "" {
+		lexer = "plaintext"
+	}
+	// Chroma quick.Highlight writes ANSI-colored output to buf
+	err := quick.Highlight(&buf, line+"\n", lexer, "terminal16m", "monokai")
+	if err != nil {
+		return line // fallback to plain
+	}
+	return buf.String()[:len(buf.String())-1] // remove trailing newline
+}
+
+func showInlineDiff(oldLines, newLines []string, contextLines int, filePath string) (added, removed, changed int) {
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
@@ -190,22 +213,22 @@ func showInlineDiff(oldLines, newLines []string, contextLines int) (added, remov
 		if ops[idx].kind == "-" {
 			removed++
 			line := oldLines[ops[idx].a]
-			fmt.Printf("%s %s\n", red("-"), highlightWordDiff(line, "", red))
+			fmt.Printf("%s %s\n", red("-"), highlightLineWithChroma(line, filePath))
 			continue
 		}
 		if ops[idx].kind == "+" {
 			added++
 			line := newLines[ops[idx].b]
-			fmt.Printf("%s %s\n", green("+"), highlightWordDiff("", line, green))
+			fmt.Printf("%s %s\n", green("+"), highlightLineWithChroma(line, filePath))
 			continue
 		}
-		fmt.Printf(" %s\n", cyan(oldLines[ops[idx].a]))
+		fmt.Printf(" %s\n", cyan(highlightLineWithChroma(oldLines[ops[idx].a], filePath)))
 	}
 	changed = min(added, removed)
 	return
 }
 
-func sideBySideDiff(oldLines, newLines []string, contextLines int) (added, removed, changed int) {
+func sideBySideDiff(oldLines, newLines []string, contextLines int, filePath string) (added, removed, changed int) {
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
@@ -229,15 +252,15 @@ func sideBySideDiff(oldLines, newLines []string, contextLines int) (added, remov
 			right = ""
 		}
 		if left == right {
-			fmt.Printf(" %s | %s\n", cyan(left), cyan(right))
+			fmt.Printf(" %s | %s\n", cyan(highlightLineWithChroma(left, filePath)), cyan(highlightLineWithChroma(right, filePath)))
 		} else if left == "" {
-			fmt.Printf("%40s | %s%s\n", "", green("+ "), highlightWordDiff("", right, green))
+			fmt.Printf("%40s | %s%s\n", "", green("+ ")+highlightLineWithChroma(right, filePath))
 			added++
 		} else if right == "" {
-			fmt.Printf("%s%s | %40s\n", red("- "), highlightWordDiff(left, "", red), "")
+			fmt.Printf("%s%s | %40s\n", red("- ")+highlightLineWithChroma(left, filePath), "")
 			removed++
 		} else {
-			fmt.Printf("%s%s | %s%s\n", red("- "), highlightWordDiff(left, right, red), green("+ "), highlightWordDiff(left, right, green))
+			fmt.Printf("%s%s | %s%s\n", red("- ")+highlightLineWithChroma(left, filePath), green("+ ")+highlightLineWithChroma(right, filePath))
 			added++
 			removed++
 			changed++

@@ -10,6 +10,8 @@ require (
 )
 
 require (
+	github.com/alecthomas/chroma v0.10.0 // indirect
+	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

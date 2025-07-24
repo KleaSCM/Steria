@@ -55,14 +55,12 @@
 - [x] Performance benchmarks for commit and key generation
 - [x] Integration tests for file upload and CLI workflow (all passing as of latest run)
 
-## 🚧 IN PROGRESS / NEXT UP
-- [ ] Unit tests for all CLI command logic in `cmd/` (branching, projects, repository, workflow)
-- [ ] Expand integration tests for multi-branch, merge, restore, ignore, and remote workflows
-- [ ] Add more edge case and error handling tests for all modules
-- [ ] Add performance benchmarks for diff, merge, and other critical operations
-- [ ] Set up CI automation (e.g., GitHub Actions) to run all tests and benchmarks on every push/PR
-- [ ] Add code coverage reporting and badge
-- [ ] Document test coverage and CI status in README
+## 🎯 PRIORITY FEATURES
+
+- [ ] Enhanced Diff Visualization - Better diff display with syntax highlighting
+- [ ] Repository Search - Search across commits, files, and content
+- [ ] Branch Visualization - Visual representation of branch relationships
+- [ ] Performance Optimization - Optimize large repository operations
 
 ### Web Interface Enhancements
 - [x] File upload functionality (integration tested and passing)
@@ -121,12 +119,6 @@
 - [x] Architecture diagrams
 - [x] Best practices guide
 
-## 🎯 PRIORITY FEATURES
-
-- [ ] Enhanced Diff Visualization - Better diff display with syntax highlighting
-- [ ] Repository Search - Search across commits, files, and content
-- [ ] Branch Visualization - Visual representation of branch relationships
-- [ ] Performance Optimization - Optimize large repository operations
 
 ## 🔧 TECHNICAL DEBT
 
@@ -144,3 +136,11 @@
 - [ ] Error rate tracking
 - [ ] Performance regression detection
 
+## 🚧 IN PROGRESS / NEXT UP
+- [ ] Unit tests for all CLI command logic in `cmd/` (branching, projects, repository, workflow)
+- [ ] Expand integration tests for multi-branch, merge, restore, ignore, and remote workflows
+- [ ] Add more edge case and error handling tests for all modules
+- [ ] Add performance benchmarks for diff, merge, and other critical operations
+- [ ] Set up CI automation (e.g., GitHub Actions) to run all tests and benchmarks on every push/PR
+- [ ] Add code coverage reporting and badge
+- [ ] Document test coverage and CI status in README
