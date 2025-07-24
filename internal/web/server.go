@@ -10,6 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"encoding/json"
+	"steria/internal/storage"
+	"time"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -61,7 +65,31 @@ var tmpl = template.Must(template.New("browser").Parse(`
         .tree-children.expanded { display: block; }
         .tree-icon { margin-right: 0.5em; }
         .current-path { font-weight: bold; color: #b4007a; }
+        .commit-btn { margin-bottom: 1em; padding: 0.5em 1em; background: #2177b4; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); }
+        .modal-content { background: #fff; margin: 5% auto; padding: 2em; border-radius: 12px; max-width: 800px; position: relative; }
+        .close { position: absolute; right: 1em; top: 1em; font-size: 1.5em; cursor: pointer; color: #b4007a; }
+        .tabs { display: flex; gap: 1em; margin-bottom: 1em; }
+        .tab { padding: 0.5em 1em; border-radius: 6px 6px 0 0; background: #f8f0ff; cursor: pointer; }
+        .tab.active { background: #b4007a; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .commit-graph { max-height: 400px; overflow-y: auto; font-family: monospace; }
+        .commit-graph .commit { margin-bottom: 1em; border-left: 3px solid #b4007a; padding-left: 1em; position: relative; }
+        .commit-graph .commit:before { content: "●"; color: #b4007a; position: absolute; left: -1.1em; top: 0.1em; font-size: 1.2em; }
+        .commit-graph .hash { font-size: 0.9em; color: #2177b4; }
+        .commit-graph .author { color: #008000; }
+        .commit-graph .date { color: #888; font-size: 0.9em; }
+        .commit-graph .msg { font-weight: bold; }
+        .mermaid { background: #f8f0ff; border-radius: 8px; padding: 1em; }
+        .commit-details { margin-top: 1em; padding: 1em; background: #f0f0f0; border-radius: 6px; }
+        .file-entry { margin-bottom: 0.5em; }
+        .file-actions { margin-left: 1em; }
+        .diff-preview { background: #222; color: #fff; padding: 0.5em; border-radius: 6px; margin-top: 0.3em; font-size: 0.95em; overflow-x: auto; }
+        .diff-preview .add { color: #00ff00; }
+        .diff-preview .del { color: #ff5555; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -110,6 +138,26 @@ var tmpl = template.Must(template.New("browser").Parse(`
                 </form>
                 {{if .Msg}}<div class="msg">{{.Msg}}</div>{{end}}
                 {{if .Err}}<div class="err">{{.Err}}</div>{{end}}
+                <div class="commit-btn">
+                    <button onclick="showCommitModal()">Show Commit Graph</button>
+                </div>
+            </div>
+        </div>
+        <!-- Commit Modal -->
+        <div id="commitModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeCommitModal()">&times;</span>
+                <div class="tabs">
+                    <div class="tab active" onclick="showTab('graph')">Vertical Graph</div>
+                    <div class="tab" onclick="showTab('mermaid')">Mermaid Diagram</div>
+                </div>
+                <div id="tab-graph" class="tab-content active">
+                    <div id="commitGraph" class="commit-graph"></div>
+                    <div id="commitDetails" class="commit-details" style="display:none;"></div>
+                </div>
+                <div id="tab-mermaid" class="tab-content">
+                    <div id="mermaidGraph" class="mermaid"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -222,6 +270,131 @@ var tmpl = template.Must(template.New("browser").Parse(`
         var children = element.nextElementSibling;
         if (children && children.classList.contains('tree-children')) {
             children.classList.toggle('expanded');
+        }
+    }
+
+    function showCommitModal() {
+        document.getElementById('commitModal').style.display = 'block';
+        loadCommitGraph();
+    }
+    function closeCommitModal() {
+        document.getElementById('commitModal').style.display = 'none';
+    }
+    function showTab(tab) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelector('.tab[onclick*="'+tab+'"], .tab[onclick*="'+tab+'()"]').classList.add('active');
+        document.getElementById('tab-'+tab).classList.add('active');
+    }
+    function loadCommitGraph() {
+        fetch('/commits?path={{.RelPath}}')
+            .then(response => response.json())
+            .then(data => {
+                // Vertical Graph
+                var html = '';
+                data.commits.forEach(function(commit) {
+                    html += '<div class="commit" onclick="showCommitDetails(\'' + commit.hash + '\')">';
+                    html += '<div class="hash">'+commit.hash.substring(0,8)+'</div>';
+                    html += '<div class="author">'+commit.author+'</div>';
+                    html += '<div class="date">'+new Date(commit.timestamp).toLocaleString()+'</div>';
+                    html += '<div class="msg">'+commit.message+'</div>';
+                    if (commit.parent) html += '<div class="parent">Parent: '+commit.parent.substring(0,8)+'</div>';
+                    html += '</div>';
+                });
+                document.getElementById('commitGraph').innerHTML = html;
+                // Mermaid Graph
+                var mermaidStr = 'gitGraph:\n';
+                for (var i = 0; i < data.commits.length; i++) {
+                    var c = data.commits[i];
+                    mermaidStr += '  commit id:"'+c.hash.substring(0,8)+'" author:"'+c.author+'" msg:"'+c.message.replace(/"/g,'\\"')+'"\n';
+                }
+                document.getElementById('mermaidGraph').innerHTML = '<pre>'+mermaidStr+'</pre>';
+                if (window.mermaid) {
+                    mermaid.initialize({ startOnLoad: false });
+                    mermaid.render('mermaidSvg', mermaidStr, function(svgCode) {
+                        document.getElementById('mermaidGraph').innerHTML = svgCode;
+                    });
+                }
+            });
+    }
+    function showCommitDetails(hash) {
+        var detailsPanel = document.getElementById('commitDetails');
+        detailsPanel.style.display = 'block';
+        detailsPanel.innerHTML = '<div>Loading details...</div>';
+
+        fetch('/commit?path={{.RelPath}}&hash=' + encodeURIComponent(hash))
+            .then(response => response.json())
+            .then(data => {
+                var html = '<h3>Commit Details for ' + data.hash + '</h3>';
+                html += '<p><strong>Author:</strong> ' + data.author + '</p>';
+                html += '<p><strong>Date:</strong> ' + new Date(data.timestamp).toLocaleString() + '</p>';
+                html += '<p><strong>Message:</strong> ' + data.message + '</p>';
+                if (data.parent) {
+                    html += '<p><strong>Parent:</strong> ' + data.parent.substring(0,8) + '</p>';
+                }
+                html += '<h4>Files Changed:</h4>';
+                if (data.files && data.files.length > 0) {
+                    html += '<ul>';
+                    data.files.forEach(function(file) {
+                        html += '<li class="file-entry">';
+                        html += '<span class="entry-name">' + file.path + '</span>';
+                        html += '<div class="file-actions">';
+                        html += '<a href="/download-blob?path={{.RelPath}}&hash=' + encodeURIComponent(file.blob_hash) + '" target="_blank">Download</a>';
+                        html += '<button onclick="showDiff(\'' + file.blob_hash + '\', \'' + file.path + '\', \'' + file.parent_blob + '\')">Show Diff</button>';
+                        html += '<button onclick="showInlineView(\'' + file.blob_hash + '\', \'' + file.path + '\')">Inline View</button>';
+                        html += '</div>';
+                        html += '<div id="diffPreview_' + file.blob_hash + '" class="diff-preview" style="display:none;"></div>';
+                        html += '</li>';
+                    });
+                    html += '</ul>';
+                } else {
+                    html += '<p>No files changed in this commit.</p>';
+                }
+                detailsPanel.innerHTML = html;
+            })
+            .catch(error => {
+                detailsPanel.innerHTML = '<div class="err">Failed to load commit details: ' + error + '</div>';
+            });
+    }
+    function showDiff(blobHash, filePath, parentBlobHash) {
+        var diffPreview = document.getElementById('diffPreview_' + blobHash);
+        if (diffPreview.style.display === 'block') {
+            diffPreview.style.display = 'none';
+        } else {
+            diffPreview.style.display = 'block';
+            diffPreview.innerHTML = '<div>Loading diff...</div>';
+            fetch('/diff?path={{.RelPath}}&file=' + encodeURIComponent(filePath) + '&cur=' + encodeURIComponent(blobHash) + '&prev=' + encodeURIComponent(parentBlobHash))
+                .then(response => response.text())
+                .then(diff => {
+                    diffPreview.innerHTML = '<pre>' + diff + '</pre>';
+                    hljs.highlightElement(diffPreview.querySelector('pre'));
+                })
+                .catch(error => {
+                    diffPreview.innerHTML = '<div class="err">Failed to load diff: ' + error + '</div>';
+                });
+        }
+    }
+    function showInlineView(blobHash, filePath) {
+        var detailsPanel = document.getElementById('commitDetails');
+        detailsPanel.innerHTML = '<div>Loading file content...</div>';
+        detailsPanel.style.display = 'block';
+
+        fetch('/blob?path={{.RelPath}}&hash=' + encodeURIComponent(blobHash))
+            .then(response => response.text())
+            .then(content => {
+                var html = '<h3>File: ' + filePath + '</h3>';
+                html += '<pre class="diff-preview">' + content + '</pre>';
+                detailsPanel.innerHTML = html;
+                hljs.highlightElement(detailsPanel.querySelector('pre'));
+            })
+            .catch(error => {
+                detailsPanel.innerHTML = '<div class="err">Failed to load file content: ' + error + '</div>';
+            });
+    }
+    window.onclick = function(event) {
+        var modal = document.getElementById('commitModal');
+        if (event.target == modal) {
+            closeCommitModal();
         }
     }
     </script>
@@ -486,6 +659,257 @@ func TreeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"tree":%s}`, tree)
 }
 
+func CommitsHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		relPath = "."
+	}
+	userDir := filepath.Join(BaseDir, username)
+	repoPath := filepath.Join(userDir, relPath)
+	if !strings.HasPrefix(repoPath, userDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	repo, err := storage.LoadOrInitRepo(repoPath)
+	if err != nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	// Traverse commit history from HEAD
+	var commits []map[string]interface{}
+	hash := strings.TrimSpace(repo.Head)
+	seen := map[string]bool{}
+	for hash != "" && !seen[hash] {
+		seen[hash] = true
+		commit, err := repo.LoadCommit(hash)
+		if err != nil {
+			break
+		}
+		commits = append(commits, map[string]interface{}{
+			"hash":      commit.Hash,
+			"author":    commit.Author,
+			"timestamp": commit.Timestamp.Format(time.RFC3339),
+			"message":   commit.Message,
+			"parent":    commit.Parent,
+		})
+		hash = commit.Parent
+	}
+	// Reverse to chronological order
+	for i, j := 0, len(commits)-1; i < j; i, j = i+1, j-1 {
+		commits[i], commits[j] = commits[j], commits[i]
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"commits": commits})
+}
+
+func CommitDetailHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		relPath = "."
+	}
+	hash := r.URL.Query().Get("hash")
+	if hash == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	userDir := filepath.Join(BaseDir, username)
+	repoPath := filepath.Join(userDir, relPath)
+	if !strings.HasPrefix(repoPath, userDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	repo, err := storage.LoadOrInitRepo(repoPath)
+	if err != nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	commit, err := repo.LoadCommit(hash)
+	if err != nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	var parentBlobs map[string]string
+	if commit.Parent != "" {
+		parentCommit, err := repo.LoadCommit(commit.Parent)
+		if err == nil {
+			parentBlobs = parentCommit.FileBlobs
+		}
+	}
+	var files []map[string]interface{}
+	for _, f := range commit.Files {
+		status := "modified"
+		if parentBlobs == nil || parentBlobs[f] == "" {
+			status = "added"
+		} else if commit.FileBlobs[f] == "" {
+			status = "deleted"
+		}
+		files = append(files, map[string]interface{}{
+			"path":   f,
+			"status": status,
+			"blob":   commit.FileBlobs[f],
+			"parent_blob": func() string {
+				if parentBlobs != nil {
+					return parentBlobs[f]
+				} else {
+					return ""
+				}
+			}(),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"hash":      commit.Hash,
+		"author":    commit.Author,
+		"timestamp": commit.Timestamp.Format(time.RFC3339),
+		"message":   commit.Message,
+		"parent":    commit.Parent,
+		"files":     files,
+	})
+}
+
+func DownloadBlobHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		relPath = "."
+	}
+	hash := r.URL.Query().Get("hash")
+	if hash == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	userDir := filepath.Join(BaseDir, username)
+	repoPath := filepath.Join(userDir, relPath)
+	if !strings.HasPrefix(repoPath, userDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	blobPath := filepath.Join(repoPath, ".steria", "objects", "blobs", hash)
+	if _, err := os.Stat(blobPath); err != nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename="+hash)
+	http.ServeFile(w, r, blobPath)
+}
+
+func DiffHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		relPath = "."
+	}
+	file := r.URL.Query().Get("file")
+	curHash := r.URL.Query().Get("cur")
+	prevHash := r.URL.Query().Get("prev")
+	if file == "" || curHash == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	userDir := filepath.Join(BaseDir, username)
+	repoPath := filepath.Join(userDir, relPath)
+	if !strings.HasPrefix(repoPath, userDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	curPath := filepath.Join(repoPath, ".steria", "objects", "blobs", curHash)
+	var prevPath string
+	if prevHash != "" {
+		prevPath = filepath.Join(repoPath, ".steria", "objects", "blobs", prevHash)
+	}
+	curData, _ := os.ReadFile(curPath)
+	var prevData []byte
+	if prevPath != "" {
+		prevData, _ = os.ReadFile(prevPath)
+	}
+
+	diff := simpleDiff(string(prevData), string(curData))
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(diff))
+}
+
+func simpleDiff(a, b string) string {
+	// Simple line-by-line diff: + for added, - for removed, ' ' for unchanged
+	alines := strings.Split(a, "\n")
+	blines := strings.Split(b, "\n")
+	var out []string
+	ai, bi := 0, 0
+	for ai < len(alines) || bi < len(blines) {
+		if ai < len(alines) && bi < len(blines) {
+			if alines[ai] == blines[bi] {
+				out = append(out, "  "+alines[ai])
+				ai++
+				bi++
+			} else {
+				out = append(out, "+ "+blines[bi])
+				out = append(out, "- "+alines[ai])
+				ai++
+				bi++
+			}
+		} else if ai < len(alines) {
+			out = append(out, "- "+alines[ai])
+			ai++
+		} else {
+			out = append(out, "+ "+blines[bi])
+			bi++
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func BlobHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		relPath = "."
+	}
+	hash := r.URL.Query().Get("hash")
+	if hash == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	userDir := filepath.Join(BaseDir, username)
+	repoPath := filepath.Join(userDir, relPath)
+	if !strings.HasPrefix(repoPath, userDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	blobPath := filepath.Join(repoPath, ".steria", "objects", "blobs", hash)
+	if _, err := os.Stat(blobPath); err != nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	http.ServeFile(w, r, blobPath)
+}
+
 type TreeNode struct {
 	Name     string     `json:"name"`
 	Children []TreeNode `json:"children,omitempty"`
@@ -544,6 +968,11 @@ func StartServer(addr string) {
 	http.HandleFunc("/upload", UploadHandler)
 	http.HandleFunc("/search", SearchHandler)
 	http.HandleFunc("/tree", TreeHandler)
+	http.HandleFunc("/commits", CommitsHandler)
+	http.HandleFunc("/commit", CommitDetailHandler)
+	http.HandleFunc("/download-blob", DownloadBlobHandler)
+	http.HandleFunc("/diff", DiffHandler)
+	http.HandleFunc("/blob", BlobHandler)
 	http.HandleFunc("/", WithAuth(BrowserHandler))
 
 	log.Printf("Steria server running on %s ...", addr)
