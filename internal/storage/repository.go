@@ -32,12 +32,13 @@ type Config struct {
 
 // Commit represents a commit in the repository
 type Commit struct {
-	Hash      string    `json:"hash"`
-	Message   string    `json:"message"`
-	Author    string    `json:"author"`
-	Timestamp time.Time `json:"timestamp"`
-	Parent    string    `json:"parent"`
-	Files     []string  `json:"files"`
+	Hash      string            `json:"hash"`
+	Message   string            `json:"message"`
+	Author    string            `json:"author"`
+	Timestamp time.Time         `json:"timestamp"`
+	Parent    string            `json:"parent"`
+	Files     []string          `json:"files"`
+	FileBlobs map[string]string `json:"file_blobs"`
 }
 
 // FileChange represents a change to a file
@@ -237,40 +238,62 @@ func (r *Repo) GetChanges() ([]FileChange, error) {
 
 // CreateCommit creates a new commit
 func (r *Repo) CreateCommit(message, author string) (*Commit, error) {
-	// Get changes
 	changes, err := r.GetChanges()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changes: %w", err)
 	}
 
-	// Create commit object
 	commit := &Commit{
 		Message:   message,
 		Author:    author,
 		Timestamp: time.Now(),
 		Parent:    r.Head,
+		FileBlobs: make(map[string]string),
 	}
 
-	// Add files to commit
 	var totalBytes int64
 	for _, change := range changes {
 		if change.Type != ChangeTypeDeleted {
 			commit.Files = append(commit.Files, change.Path)
-			// Get file size for metrics
 			filePath := filepath.Join(r.Path, change.Path)
 			info, err := os.Stat(filePath)
 			if err == nil {
 				totalBytes += info.Size()
 			}
+			// Store file blob
+			hash, err := r.calculateFileHash(filePath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to hash file %s: %w", change.Path, err)
+			}
+			blobDir := filepath.Join(r.Path, ".steria", "objects", "blobs")
+			if err := os.MkdirAll(blobDir, 0755); err != nil {
+				return nil, fmt.Errorf("failed to create blob dir: %w", err)
+			}
+			blobPath := filepath.Join(blobDir, hash)
+			if _, err := os.Stat(blobPath); os.IsNotExist(err) {
+				src, err := os.Open(filePath)
+				if err != nil {
+					return nil, fmt.Errorf("failed to open file for blob: %w", err)
+				}
+				defer src.Close()
+				dst, err := os.Create(blobPath)
+				if err != nil {
+					return nil, fmt.Errorf("failed to create blob file: %w", err)
+				}
+				if _, err := io.Copy(dst, src); err != nil {
+					dst.Close()
+					return nil, fmt.Errorf("failed to write blob: %w", err)
+				}
+				dst.Close()
+			}
+			commit.FileBlobs[change.Path] = hash
 		}
 	}
 
-	// Update performance metrics
 	metrics.GlobalMetrics.IncrementFilesProcessed(int64(len(commit.Files)))
 	metrics.GlobalMetrics.IncrementBytesProcessed(totalBytes)
 	metrics.GlobalMetrics.IncrementCommitsCreated()
 
-	// Generate commit hash
 	commitData, err := json.Marshal(commit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal commit: %w", err)
@@ -279,12 +302,10 @@ func (r *Repo) CreateCommit(message, author string) (*Commit, error) {
 	hash := sha256.Sum256(commitData)
 	commit.Hash = hex.EncodeToString(hash[:])
 
-	// Save commit object
 	if err := r.saveCommit(commit); err != nil {
 		return nil, fmt.Errorf("failed to save commit: %w", err)
 	}
 
-	// Update HEAD
 	r.Head = commit.Hash
 	headPath := filepath.Join(r.Path, ".steria", "HEAD")
 	if err := os.WriteFile(headPath, []byte(commit.Hash), 0644); err != nil {

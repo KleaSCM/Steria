@@ -84,11 +84,11 @@ func runSend(username, targetSubdir string) error {
 		srcPath := filepath.Join(cwd, entry.Name())
 		dstPath := filepath.Join(targetBase, entry.Name())
 		if entry.IsDir() {
-			if err := copyDir(srcPath, dstPath); err != nil {
+			if err := CopyDir(srcPath, dstPath); err != nil {
 				return err
 			}
 		} else {
-			if err := copyFile(srcPath, dstPath); err != nil {
+			if err := CopyFile(srcPath, dstPath); err != nil {
 				return err
 			}
 		}
@@ -97,7 +97,7 @@ func runSend(username, targetSubdir string) error {
 	// Always copy .steria
 	steriaPath := filepath.Join(cwd, ".steria")
 	if _, err := os.Stat(steriaPath); err == nil {
-		if err := copyDir(steriaPath, filepath.Join(targetBase, ".steria")); err != nil {
+		if err := CopyDir(steriaPath, filepath.Join(targetBase, ".steria")); err != nil {
 			return err
 		}
 	}
@@ -106,8 +106,8 @@ func runSend(username, targetSubdir string) error {
 	return nil
 }
 
-// copyDir recursively copies a directory
-func copyDir(src string, dst string) error {
+// CopyDir recursively copies a directory
+func CopyDir(src string, dst string) error {
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		return err
@@ -119,11 +119,11 @@ func copyDir(src string, dst string) error {
 		srcPath := filepath.Join(src, entry.Name())
 		dstPath := filepath.Join(dst, entry.Name())
 		if entry.IsDir() {
-			if err := copyDir(srcPath, dstPath); err != nil {
+			if err := CopyDir(srcPath, dstPath); err != nil {
 				return err
 			}
 		} else {
-			if err := copyFile(srcPath, dstPath); err != nil {
+			if err := CopyFile(srcPath, dstPath); err != nil {
 				return err
 			}
 		}
@@ -131,8 +131,8 @@ func copyDir(src string, dst string) error {
 	return nil
 }
 
-// copyFile copies a single file
-func copyFile(src, dst string) error {
+// CopyFile copies a single file
+func CopyFile(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err

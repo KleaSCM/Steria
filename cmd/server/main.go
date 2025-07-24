@@ -15,8 +15,7 @@ import (
 	"strings"
 )
 
-// User struct represents a Steria user
-// In a real system, this would be stored securely (e.g., in a DB)
+// users stores username-password pairs for authentication
 var users = map[string]string{
 	"KleaSCM": "password123", // TODO: Replace with secure password storage
 }
@@ -24,7 +23,7 @@ var users = map[string]string{
 // Base directory for all user files
 const baseDir = "/home/klea/Steria/"
 
-// Session management (simple, in-memory for now)
+// sessions maps sessionID to username for session management
 var sessions = map[string]string{} // sessionID -> username
 
 // Template for the file browser page

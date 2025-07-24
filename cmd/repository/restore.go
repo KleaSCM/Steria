@@ -110,17 +110,26 @@ func runRestore(filePath, commitHash string) error {
 		fmt.Printf("%s Action: Will restore from commit %s\n", green("🔄"), targetCommit[:8])
 	}
 
-	// For now, we'll simulate the restoration since we don't have the actual file content
-	// In a real implementation, we would:
-	// 1. Load the file content from the commit's tree
-	// 2. Write it to the working directory
-	// 3. Update the index if needed
+	// Restore the file from the commit's blob
+	blobHash, ok := commit.FileBlobs[filePath]
+	if !ok {
+		return fmt.Errorf("file blob for '%s' not found in commit %s", filePath, targetCommit[:8])
+	}
+	blobPath := filepath.Join(cwd, ".steria", "objects", "blobs", blobHash)
+	blobData, err := os.ReadFile(blobPath)
+	if err != nil {
+		return fmt.Errorf("failed to read blob for '%s': %w", filePath, err)
+	}
+	// Ensure parent directory exists
+	if err := os.MkdirAll(filepath.Dir(currentPath), 0755); err != nil {
+		return fmt.Errorf("failed to create parent directory: %w", err)
+	}
+	if err := os.WriteFile(currentPath, blobData, 0644); err != nil {
+		return fmt.Errorf("failed to write restored file: %w", err)
+	}
 
-	fmt.Printf("\n%s Restoration simulation completed!\n", green("✅"))
-	fmt.Printf("%s File '%s' would be restored from commit %s\n", cyan("💡"), filePath, targetCommit[:8])
-	fmt.Printf("%s Note: This is a simulation. Actual file restoration requires tree object implementation.\n", yellow("⚠️"))
+	fmt.Printf("%s File '%s' restored from commit %s\n", green("✅"), filePath, targetCommit[:8])
 
-	// Update performance metrics
 	metrics.GlobalMetrics.IncrementFilesProcessed(1)
 
 	return nil

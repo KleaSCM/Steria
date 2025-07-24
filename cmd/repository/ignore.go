@@ -64,32 +64,75 @@ func runIgnore(pattern string) error {
 		return addIgnorePattern(ignorePath, pattern)
 	}
 
-	// Show current ignore patterns
-	fmt.Printf("\n%s Current .steriaignore patterns:\n", magenta("📋"))
-	patterns, err := loadIgnorePatterns(ignorePath)
-	if err != nil {
-		fmt.Printf("%s No .steriaignore file found or error reading file\n", yellow("⚠️"))
-	} else if len(patterns) == 0 {
-		fmt.Printf("%s No ignore patterns found\n", yellow("⚠️"))
-	} else {
-		for i, pattern := range patterns {
-			fmt.Printf("  %d. %s\n", i+1, pattern)
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		// Load current patterns
+		patterns, _ := loadIgnorePatterns(ignorePath)
+		fmt.Printf("\n%s Current .steriaignore patterns:\n", magenta("📋"))
+		if len(patterns) == 0 {
+			fmt.Printf("%s No ignore patterns found\n", yellow("⚠️"))
+		} else {
+			for i, pattern := range patterns {
+				fmt.Printf("  %d. %s\n", i+1, pattern)
+			}
+		}
+
+		fmt.Printf("\n%s Interactive .steriaignore Manager\n", cyan("🎛️"))
+		fmt.Printf("  1. %s Add a new ignore pattern\n", green("➕"))
+		fmt.Printf("  2. %s Remove an ignore pattern\n", red("🗑️"))
+		fmt.Printf("  3. %s View all patterns\n", cyan("👁️"))
+		fmt.Printf("  4. %s Exit\n", yellow("🚪"))
+		fmt.Print("\nEnter your choice (1-4): ")
+
+		if !scanner.Scan() {
+			break
+		}
+		choice := strings.TrimSpace(scanner.Text())
+		switch choice {
+		case "1":
+			fmt.Print("Enter new ignore pattern: ")
+			if !scanner.Scan() {
+				break
+			}
+			newPattern := strings.TrimSpace(scanner.Text())
+			if newPattern == "" {
+				fmt.Printf("%s Pattern cannot be empty\n", yellow("⚠️"))
+				continue
+			}
+			if err := addIgnorePattern(ignorePath, newPattern); err != nil {
+				fmt.Printf("%s Failed to add pattern: %v\n", red("❌"), err)
+			}
+		case "2":
+			if len(patterns) == 0 {
+				fmt.Printf("%s No patterns to remove\n", yellow("⚠️"))
+				continue
+			}
+			fmt.Print("Enter pattern number to remove: ")
+			if !scanner.Scan() {
+				break
+			}
+			idxStr := strings.TrimSpace(scanner.Text())
+			idx := -1
+			fmt.Sscanf(idxStr, "%d", &idx)
+			if idx < 1 || idx > len(patterns) {
+				fmt.Printf("%s Invalid pattern number\n", yellow("⚠️"))
+				continue
+			}
+			patterns = append(patterns[:idx-1], patterns[idx:]...)
+			if err := writeIgnorePatterns(ignorePath, patterns); err != nil {
+				fmt.Printf("%s Failed to remove pattern: %v\n", red("❌"), err)
+			} else {
+				fmt.Printf("%s Pattern removed successfully\n", green("✅"))
+			}
+		case "3":
+			continue // Will reprint patterns at top of loop
+		case "4":
+			fmt.Println("Exiting .steriaignore manager.")
+			return nil
+		default:
+			fmt.Printf("%s Invalid choice. Please enter 1-4.\n", yellow("⚠️"))
 		}
 	}
-
-	// Show interactive menu
-	fmt.Printf("\n%s Interactive .steriaignore Manager\n", cyan("🎛️"))
-	fmt.Printf("  1. %s Add a new ignore pattern\n", green("➕"))
-	fmt.Printf("  2. %s Remove an ignore pattern\n", red("🗑️"))
-	fmt.Printf("  3. %s View all patterns\n", cyan("👁️"))
-	fmt.Printf("  4. %s Exit\n", yellow("🚪"))
-
-	// For now, we'll show a helpful message since we can't do interactive input
-	fmt.Printf("\n%s Interactive mode requires terminal input handling.\n", yellow("⚠️"))
-	fmt.Printf("%s For now, use: 'steria ignore <pattern>' to add patterns directly.\n", cyan("💡"))
-	fmt.Printf("%s Example: 'steria ignore *.log'\n", cyan("💡"))
-	fmt.Printf("%s Example: 'steria ignore temp/'\n", cyan("💡"))
-
 	return nil
 }
 
