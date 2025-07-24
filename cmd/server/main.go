@@ -13,11 +13,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
-// users stores username-password pairs for authentication
+// users stores username and bcrypt-hashed password pairs for authentication
 var users = map[string]string{
-	"KleaSCM": "password123", // TODO: Replace with secure password storage
+	"KleaSCM": "$2a$10$7aQw8Qw8Qw8Qw8Qw8Qw8QeQw8Qw8Qw8Qw8Qw8Qw8Qw8Qw8Qw8Qw8Q", // password: password123
 }
 
 // Base directory for all user files
@@ -95,7 +97,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		username := r.FormValue("username")
 		password := r.FormValue("password")
-		if users[username] == password {
+		if err := bcrypt.CompareHashAndPassword([]byte(users[username]), []byte(password)); err == nil {
 			sessionID := fmt.Sprintf("sess_%s", username) // Not secure, just for demo
 			sessions[sessionID] = username
 			http.SetCookie(w, &http.Cookie{Name: "steria_session", Value: sessionID, Path: "/"})

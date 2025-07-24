@@ -13,8 +13,6 @@ import (
 
 	"steria/internal/metrics"
 
-	"steria/cmd/repository"
-
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -103,11 +101,11 @@ func copySteriaRepo(src, dst string) error {
 		srcPath := filepath.Join(src, entry.Name())
 		dstPath := filepath.Join(dst, entry.Name())
 		if entry.IsDir() {
-			if err := repository.CopyDir(srcPath, dstPath); err != nil {
+			if err := CopyDir(srcPath, dstPath); err != nil {
 				return err
 			}
 		} else {
-			if err := repository.CopyFile(srcPath, dstPath); err != nil {
+			if err := CopyFile(srcPath, dstPath); err != nil {
 				return err
 			}
 		}
@@ -115,7 +113,7 @@ func copySteriaRepo(src, dst string) error {
 	// Always copy .steria folder if present
 	steriaPath := filepath.Join(src, ".steria")
 	if _, err := os.Stat(steriaPath); err == nil {
-		if err := repository.CopyDir(steriaPath, filepath.Join(dst, ".steria")); err != nil {
+		if err := CopyDir(steriaPath, filepath.Join(dst, ".steria")); err != nil {
 			return err
 		}
 	}
