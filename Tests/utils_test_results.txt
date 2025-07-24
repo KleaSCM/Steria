@@ -1,0 +1,4 @@
+=== RUN   TestShouldIgnore
+--- PASS: TestShouldIgnore (0.00s)
+PASS
+ok  	steria/internal/utils	0.002s

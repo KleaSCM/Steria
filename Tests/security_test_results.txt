@@ -1,0 +1,18 @@
+=== RUN   TestGenerateKeyPair
+--- PASS: TestGenerateKeyPair (0.00s)
+=== RUN   TestSignAndVerifyMessage
+--- PASS: TestSignAndVerifyMessage (0.00s)
+=== RUN   TestVerifySignature_Invalid
+--- PASS: TestVerifySignature_Invalid (0.00s)
+=== RUN   TestSecureHashAndVerify
+--- PASS: TestSecureHashAndVerify (0.00s)
+=== RUN   TestVerifySecureHash_Invalid
+--- PASS: TestVerifySecureHash_Invalid (0.00s)
+goos: linux
+goarch: amd64
+pkg: steria/internal/security
+cpu: AMD Ryzen 7 8845HS w/ Radeon 780M Graphics     
+BenchmarkGenerateKeyPair
+BenchmarkGenerateKeyPair-16    	   78223	     14537 ns/op
+PASS
+ok  	steria/internal/security	1.297s

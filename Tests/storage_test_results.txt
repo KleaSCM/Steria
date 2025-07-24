@@ -1,0 +1,24 @@
+=== RUN   TestLoadOrInitRepo_New
+--- PASS: TestLoadOrInitRepo_New (0.00s)
+=== RUN   TestLoadOrInitRepo_Existing
+--- PASS: TestLoadOrInitRepo_Existing (0.00s)
+=== RUN   TestCreateCommitAndGetChanges
+--- PASS: TestCreateCommitAndGetChanges (0.00s)
+=== RUN   TestHasRemote
+--- PASS: TestHasRemote (0.00s)
+=== RUN   TestSync_NoRemote
+--- PASS: TestSync_NoRemote (0.00s)
+=== RUN   TestLoadCommit
+--- PASS: TestLoadCommit (0.00s)
+=== RUN   TestGetCurrentStateAndWorkingState
+--- PASS: TestGetCurrentStateAndWorkingState (0.00s)
+=== RUN   TestCalculateFileHash
+--- PASS: TestCalculateFileHash (0.00s)
+goos: linux
+goarch: amd64
+pkg: steria/internal/storage
+cpu: AMD Ryzen 7 8845HS w/ Radeon 780M Graphics     
+BenchmarkCreateCommit
+BenchmarkCreateCommit-16    	   16938	     68681 ns/op
+PASS
+ok  	steria/internal/storage	1.987s

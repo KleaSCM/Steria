@@ -1,0 +1,14 @@
+=== RUN   TestSteriaWorkflow
+    integration_test.go:34: steria done failed: exit status 1
+        Error: accepts 2 arg(s), received 1
+        Usage:
+          steria done "message" - signer [flags]
+        
+        Flags:
+          -h, --help   help for done
+        
+        Error: accepts 2 arg(s), received 1
+--- FAIL: TestSteriaWorkflow (0.00s)
+FAIL
+FAIL	steria/Tests	0.005s
+FAIL

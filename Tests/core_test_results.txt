@@ -1,0 +1,4 @@
+=== RUN   TestCreateCommit
+--- PASS: TestCreateCommit (0.00s)
+PASS
+ok  	steria/core	0.002s

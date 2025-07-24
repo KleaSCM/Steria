@@ -1,0 +1,4 @@
+=== RUN   TestStartProfiling
+--- PASS: TestStartProfiling (0.00s)
+PASS
+ok  	steria/internal/metrics	0.002s
