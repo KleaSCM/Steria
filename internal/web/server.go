@@ -42,6 +42,8 @@ var tmpl = template.Must(template.New("browser").Parse(`
         .upload-form { margin-top: 2em; }
         .msg { color: #008000; font-weight: bold; }
         .err { color: #b40000; font-weight: bold; }
+        .search-bar { width: 100%; padding: 0.5em; margin-bottom: 1em; border-radius: 6px; border: 1px solid #e0b3d6; font-size: 1em; }
+        .highlight { background: #ffe066; color: #6d2177; border-radius: 3px; padding: 0 2px; }
     </style>
 </head>
 <body>
@@ -49,13 +51,14 @@ var tmpl = template.Must(template.New("browser").Parse(`
         <h1>Welcome, {{.Username}}!</h1>
         <a class="logout" href="/logout">Logout</a>
         <h2>Browsing: {{.RelPath}}</h2>
-        <ul>
+        <input class="search-bar" type="text" id="searchInput" placeholder="Search files and folders..." onkeyup="filterList()">
+        <ul id="fileList">
             {{range .Entries}}
                 <li>
                     {{if .IsDir}}
-                        <a href="?path={{.Link}}">📁 {{.Name}}</a>
+                        <a href="?path={{.Link}}">📁 <span class="entry-name">{{.Name}}</span></a>
                     {{else}}
-                        <a href="/download?path={{.Link}}">📄 {{.Name}}</a>
+                        <a href="/download?path={{.Link}}">📄 <span class="entry-name">{{.Name}}</span></a>
                     {{end}}
                 </li>
             {{end}}
@@ -68,6 +71,31 @@ var tmpl = template.Must(template.New("browser").Parse(`
         {{if .Msg}}<div class="msg">{{.Msg}}</div>{{end}}
         {{if .Err}}<div class="err">{{.Err}}</div>{{end}}
     </div>
+    <script>
+    function filterList() {
+        var input = document.getElementById('searchInput');
+        var filter = input.value.toLowerCase();
+        var ul = document.getElementById('fileList');
+        var lis = ul.getElementsByTagName('li');
+        for (var i = 0; i < lis.length; i++) {
+            var entry = lis[i].getElementsByClassName('entry-name')[0];
+            var txtValue = entry.textContent || entry.innerText;
+            if (filter === "" || txtValue.toLowerCase().indexOf(filter) > -1) {
+                lis[i].style.display = "";
+                // Highlight match
+                if (filter !== "") {
+                    var re = new RegExp('('+filter+')', 'ig');
+                    entry.innerHTML = txtValue.replace(re, '<span class="highlight">$1</span>');
+                } else {
+                    entry.innerHTML = txtValue;
+                }
+            } else {
+                lis[i].style.display = "none";
+                entry.innerHTML = txtValue;
+            }
+        }
+    }
+    </script>
 </body>
 </html>
 `))
