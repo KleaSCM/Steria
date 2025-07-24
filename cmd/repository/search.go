@@ -36,15 +36,6 @@ func NewSearchCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pattern := args[0]
-			fmt.Println("Steria Search Command")
-			fmt.Println("Pattern:", pattern)
-			fmt.Println("--commits:", searchCommits)
-			fmt.Println("--files:", searchFiles)
-			fmt.Println("--all:", searchAll)
-			fmt.Println("--regex:", useRegex)
-			fmt.Println("--author:", author)
-			fmt.Println("--path:", path)
-			fmt.Println("--context:", contextLines)
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -54,11 +45,22 @@ func NewSearchCmd() *cobra.Command {
 				return err
 			}
 
-			if !searchCommits && !searchAll { // --files or default
-				return searchFilesInCommits(repo, pattern, useRegex, author, path, contextLines)
+			// If --all is set, do both
+			if searchAll {
+				if err := searchCommitsMeta(repo, pattern, useRegex, author, path, contextLines); err != nil {
+					return err
+				}
+				if err := searchFilesInCommits(repo, pattern, useRegex, author, path, contextLines); err != nil {
+					return err
+				}
+				return nil
 			}
-			// TODO: implement other modes
-			return nil
+			// If --commits only
+			if searchCommits {
+				return searchCommitsMeta(repo, pattern, useRegex, author, path, contextLines)
+			}
+			// If --files or default
+			return searchFilesInCommits(repo, pattern, useRegex, author, path, contextLines)
 		},
 	}
 
@@ -155,6 +157,91 @@ func searchFilesInCommits(repo *storage.Repo, pattern string, useRegex bool, aut
 					}
 				}
 			}
+		}
+	}
+	return nil
+}
+
+func searchCommitsMeta(repo *storage.Repo, pattern string, useRegex bool, author, pathFilter string, contextLines int) error {
+	cyan := color.New(color.FgCyan).SprintFunc()
+	magenta := color.New(color.FgMagenta).SprintFunc()
+	green := color.New(color.FgGreen).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
+	red := color.New(color.FgRed).SprintFunc()
+
+	fmt.Printf("%s Searching commit messages and metadata for pattern: %s\n", cyan("🔍"), magenta(pattern))
+
+	var re *regexp.Regexp
+	if useRegex {
+		var err error
+		re, err = regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("invalid regex: %w", err)
+		}
+	}
+
+	commitHashes := []string{}
+	commit := repo.Head
+	commitMap := map[string]bool{}
+	for commit != "" && !commitMap[commit] {
+		commitMap[commit] = true
+		commitHashes = append(commitHashes, commit)
+		c, err := repo.LoadCommit(commit)
+		if err != nil || c.Parent == "" {
+			break
+		}
+		commit = c.Parent
+	}
+
+	for _, hash := range commitHashes {
+		c, err := repo.LoadCommit(hash)
+		if err != nil {
+			continue
+		}
+		match := false
+		fields := []struct {
+			label string
+			value string
+		}{
+			{"Message", c.Message},
+			{"Author", c.Author},
+		}
+		for _, f := range fields {
+			if useRegex {
+				if re.MatchString(f.value) {
+					match = true
+					fmt.Printf("\n%s Commit: %s | %s | %s\n", yellow("📍"), green(hash[:8]), magenta(c.Author), c.Timestamp.Format("2006-01-02 15:04:05"))
+					fmt.Printf("%s %s: %s\n", cyan("📝"), f.label, highlightMatch(f.value, pattern, useRegex))
+				}
+			} else {
+				if strings.Contains(f.value, pattern) {
+					match = true
+					fmt.Printf("\n%s Commit: %s | %s | %s\n", yellow("📍"), green(hash[:8]), magenta(c.Author), c.Timestamp.Format("2006-01-02 15:04:05"))
+					fmt.Printf("%s %s: %s\n", cyan("📝"), f.label, highlightMatch(f.value, pattern, useRegex))
+				}
+			}
+		}
+		// Search file paths in commit
+		for _, file := range c.Files {
+			if pathFilter != "" && !strings.Contains(file, pathFilter) {
+				continue
+			}
+			if useRegex {
+				if re.MatchString(file) {
+					match = true
+					fmt.Printf("\n%s Commit: %s | %s | %s\n", yellow("📍"), green(hash[:8]), magenta(c.Author), c.Timestamp.Format("2006-01-02 15:04:05"))
+					fmt.Printf("%s File Path: %s\n", cyan("📄"), highlightMatch(file, pattern, useRegex))
+				}
+			} else {
+				if strings.Contains(file, pattern) {
+					match = true
+					fmt.Printf("\n%s Commit: %s | %s | %s\n", yellow("📍"), green(hash[:8]), magenta(c.Author), c.Timestamp.Format("2006-01-02 15:04:05"))
+					fmt.Printf("%s File Path: %s\n", cyan("📄"), highlightMatch(file, pattern, useRegex))
+				}
+			}
+		}
+		if match {
+			fmt.Printf("%s---\n", red(""))
 		}
 	}
 	return nil
