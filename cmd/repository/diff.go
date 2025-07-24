@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"steria/internal/metrics"
 	"steria/internal/storage"
@@ -20,6 +21,8 @@ import (
 
 // NewDiffCmd creates the 'diff' command for Steria
 func NewDiffCmd() *cobra.Command {
+	var sideBySide bool
+	var contextLines int
 	cmd := &cobra.Command{
 		Use:   "diff [file]",
 		Short: "Show differences between file versions",
@@ -30,15 +33,15 @@ func NewDiffCmd() *cobra.Command {
 			if len(args) > 0 {
 				filePath = args[0]
 			}
-			return runDiff(filePath)
+			return runDiffWithMode(filePath, sideBySide, contextLines)
 		},
 	}
+	cmd.Flags().BoolVar(&sideBySide, "side-by-side", false, "Show side-by-side diff view")
+	cmd.Flags().IntVar(&contextLines, "context", 3, "Number of context lines to show around changes")
 	return cmd
 }
 
-// runDiff displays differences between file versions
-func runDiff(filePath string) error {
-	// Start performance profiling
+func runDiffWithMode(filePath string, sideBySide bool, contextLines int) error {
 	profiler := metrics.StartProfiling()
 	defer func() {
 		fmt.Println(profiler.EndProfiling())
@@ -64,91 +67,218 @@ func runDiff(filePath string) error {
 		return nil
 	}
 
-	// Get the last commit
 	commit, err := repo.LoadCommit(repo.Head)
 	if err != nil {
 		return fmt.Errorf("failed to load last commit: %w", err)
 	}
 
-	// If a specific file is provided, show diff for that file only
 	if filePath != "" {
-		return showFileDiff(repo, filePath, commit)
+		showFileDiffWithMode(repo, filePath, commit, sideBySide, contextLines)
+		return nil
 	}
-
-	// Show diff for all changed files
-	return showAllDiffs(repo, commit)
+	showAllDiffsWithMode(repo, commit, sideBySide, contextLines)
+	return nil
 }
 
-// showFileDiff shows differences for a specific file
-func showFileDiff(repo *storage.Repo, filePath string, commit *storage.Commit) error {
+func showFileDiffWithMode(repo *storage.Repo, filePath string, commit *storage.Commit, sideBySide bool, contextLines int) (added, removed, changed int) {
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
+	magenta := color.New(color.FgMagenta).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()
 
 	fmt.Printf("\n%s Showing differences for: %s\n", cyan("📁"), yellow(filePath))
 
-	// Check if file exists in current working directory
-	currentPath := filePath
-	if !strings.HasPrefix(currentPath, "/") {
-		currentPath = filePath
+	lastCommit := commit
+	for c := commit; c != nil; {
+		found := false
+		for _, f := range c.Files {
+			if f == filePath {
+				found = true
+				break
+			}
+		}
+		if found || c.Parent == "" {
+			break
+		}
+		parent, err := repo.LoadCommit(c.Parent)
+		if err != nil {
+			break
+		}
+		c = parent
+		lastCommit = c
 	}
 
-	// Check if file exists in commit
-	fileInCommit := false
-	for _, commitFile := range commit.Files {
-		if commitFile == filePath {
-			fileInCommit = true
-			break
+	fmt.Printf("%s Last committed by: %s at %s\n", magenta("👤"), lastCommit.Author, lastCommit.Timestamp.Format(time.RFC1123))
+
+	var commitContent []string
+	blobHash := lastCommit.FileBlobs[filePath]
+	if blobHash != "" {
+		blobPath := repo.Path + "/.steria/objects/blobs/" + blobHash
+		if f, err := os.Open(blobPath); err == nil {
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				commitContent = append(commitContent, scanner.Text())
+			}
+			f.Close()
 		}
 	}
 
-	// Read current file content
 	var currentContent []string
-	if _, err := os.Stat(currentPath); err == nil {
-		file, err := os.Open(currentPath)
+	if _, err := os.Stat(filePath); err == nil {
+		file, err := os.Open(filePath)
 		if err == nil {
-			defer file.Close()
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				currentContent = append(currentContent, scanner.Text())
 			}
+			file.Close()
 		}
 	}
 
-	// Show file status
-	if !fileInCommit && len(currentContent) > 0 {
-		fmt.Printf("%s File is new (not in last commit)\n", green("➕"))
-		fmt.Printf("%s Total lines: %d\n", cyan("📊"), len(currentContent))
-	} else if fileInCommit && len(currentContent) == 0 {
-		fmt.Printf("%s File has been deleted\n", red("🗑️"))
-	} else if fileInCommit && len(currentContent) > 0 {
-		fmt.Printf("%s File has been modified\n", yellow("✏️"))
-		fmt.Printf("%s Total lines: %d\n", cyan("📊"), len(currentContent))
+	fmt.Printf("\nLegend: %s addition, %s deletion, %s unchanged\n", green("+"), red("-"), cyan(" "))
+
+	added, removed, changed = 0, 0, 0
+	if sideBySide {
+		added, removed, changed = sideBySideDiff(commitContent, currentContent, contextLines)
 	} else {
-		fmt.Printf("%s File not found in working directory or commit\n", red("❌"))
+		added, removed, changed = showInlineDiff(commitContent, currentContent, contextLines)
 	}
+	fmt.Printf("\nSummary: %s lines added, %s lines removed, %s lines changed\n", green(fmt.Sprint(added)), red(fmt.Sprint(removed)), yellow(fmt.Sprint(changed)))
 
-	// Show a simple diff (first few lines)
-	if len(currentContent) > 0 {
-		fmt.Printf("\n%s First few lines of current file:\n", cyan("📄"))
-		maxLines := 10
-		if len(currentContent) < maxLines {
-			maxLines = len(currentContent)
-		}
-		for i := 0; i < maxLines; i++ {
-			fmt.Printf("  %s\n", currentContent[i])
-		}
-		if len(currentContent) > maxLines {
-			fmt.Printf("  %s ... (%d more lines)\n", yellow("..."), len(currentContent)-maxLines)
-		}
-	}
-
-	return nil
+	return
 }
 
-// showAllDiffs shows differences for all changed files
-func showAllDiffs(repo *storage.Repo, commit *storage.Commit) error {
+func showInlineDiff(oldLines, newLines []string, contextLines int) (added, removed, changed int) {
+	green := color.New(color.FgGreen).SprintFunc()
+	red := color.New(color.FgRed).SprintFunc()
+	cyan := color.New(color.FgCyan).SprintFunc()
+	// Simple Myers diff algorithm for line-level diff
+	type op struct {
+		kind string
+		a, b int
+	}
+	ops := []op{}
+	i, j := 0, 0
+	for i < len(oldLines) || j < len(newLines) {
+		if i < len(oldLines) && j < len(newLines) {
+			if oldLines[i] == newLines[j] {
+				ops = append(ops, op{" ", i, j})
+				i++
+				j++
+			} else if j+1 < len(newLines) && oldLines[i] == newLines[j+1] {
+				ops = append(ops, op{"+", -1, j})
+				j++
+			} else if i+1 < len(oldLines) && oldLines[i+1] == newLines[j] {
+				ops = append(ops, op{"-", i, -1})
+				i++
+			} else {
+				ops = append(ops, op{"-", i, -1})
+				ops = append(ops, op{"+", -1, j})
+				i++
+				j++
+			}
+		} else if i < len(oldLines) {
+			ops = append(ops, op{"-", i, -1})
+			i++
+		} else if j < len(newLines) {
+			ops = append(ops, op{"+", -1, j})
+			j++
+		}
+	}
+	for idx := 0; idx < len(ops); idx++ {
+		if ops[idx].kind == "-" {
+			removed++
+			line := oldLines[ops[idx].a]
+			fmt.Printf("%s %s\n", red("-"), highlightWordDiff(line, "", red))
+			continue
+		}
+		if ops[idx].kind == "+" {
+			added++
+			line := newLines[ops[idx].b]
+			fmt.Printf("%s %s\n", green("+"), highlightWordDiff("", line, green))
+			continue
+		}
+		fmt.Printf(" %s\n", cyan(oldLines[ops[idx].a]))
+	}
+	changed = min(added, removed)
+	return
+}
+
+func sideBySideDiff(oldLines, newLines []string, contextLines int) (added, removed, changed int) {
+	green := color.New(color.FgGreen).SprintFunc()
+	red := color.New(color.FgRed).SprintFunc()
+	cyan := color.New(color.FgCyan).SprintFunc()
+
+	maxLen := len(oldLines)
+	if len(newLines) > maxLen {
+		maxLen = len(newLines)
+	}
+	fmt.Printf("\n%-40s | %-40s\n", "< COMMITTED", "> WORKING DIR")
+	fmt.Printf("%s\n", strings.Repeat("-", 83))
+	for i := 0; i < maxLen; i++ {
+		var left, right string
+		if i < len(oldLines) {
+			left = oldLines[i]
+		} else {
+			left = ""
+		}
+		if i < len(newLines) {
+			right = newLines[i]
+		} else {
+			right = ""
+		}
+		if left == right {
+			fmt.Printf(" %s | %s\n", cyan(left), cyan(right))
+		} else if left == "" {
+			fmt.Printf("%40s | %s%s\n", "", green("+ "), highlightWordDiff("", right, green))
+			added++
+		} else if right == "" {
+			fmt.Printf("%s%s | %40s\n", red("- "), highlightWordDiff(left, "", red), "")
+			removed++
+		} else {
+			fmt.Printf("%s%s | %s%s\n", red("- "), highlightWordDiff(left, right, red), green("+ "), highlightWordDiff(left, right, green))
+			added++
+			removed++
+			changed++
+		}
+	}
+	return
+}
+
+func highlightWordDiff(a, b string, colorize func(a ...interface{}) string) string {
+	// Simple word diff: highlight words that are different
+	aw := strings.Fields(a)
+	bw := strings.Fields(b)
+	max := len(aw)
+	if len(bw) > max {
+		max = len(bw)
+	}
+	out := ""
+	for i := 0; i < max; i++ {
+		if i < len(aw) && i < len(bw) {
+			if aw[i] == bw[i] {
+				out += aw[i] + " "
+			} else {
+				out += colorize(bw[i]) + " "
+			}
+		} else if i < len(bw) {
+			out += colorize(bw[i]) + " "
+		} else if i < len(aw) {
+			out += colorize(aw[i]) + " "
+		}
+	}
+	return strings.TrimSpace(out)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func showAllDiffsWithMode(repo *storage.Repo, commit *storage.Commit, sideBySide bool, contextLines int) error {
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
@@ -159,7 +289,6 @@ func showAllDiffs(repo *storage.Repo, commit *storage.Commit) error {
 	fmt.Printf("%s Message: %s\n", cyan("💬"), commit.Message)
 	fmt.Printf("%s Files in commit: %d\n", cyan("📁"), len(commit.Files))
 
-	// Get current working directory state
 	changes, err := repo.GetChanges()
 	if err != nil {
 		return fmt.Errorf("failed to get changes: %w", err)
@@ -172,16 +301,17 @@ func showAllDiffs(repo *storage.Repo, commit *storage.Commit) error {
 
 	fmt.Printf("\n%s Changes in working directory:\n", cyan("🔄"))
 	for _, change := range changes {
-		switch change.Type {
-		case storage.ChangeTypeAdded:
-			fmt.Printf("  %s %s (new file)\n", green("➕"), change.Path)
-		case storage.ChangeTypeModified:
-			fmt.Printf("  %s %s (modified)\n", yellow("✏️"), change.Path)
-		case storage.ChangeTypeDeleted:
-			fmt.Printf("  %s %s (deleted)\n", red("🗑️"), change.Path)
-		}
+		fmt.Printf("  %s %s\n", change.Type, change.Path)
 	}
 
-	fmt.Printf("\n%s Use 'steria diff <filename>' to see detailed differences for a specific file\n", cyan("��"))
+	totalAdded, totalRemoved, totalChanged := 0, 0, 0
+	for _, change := range changes {
+		fmt.Printf("\n--- %s ---\n", yellow(change.Path))
+		added, removed, changed := showFileDiffWithMode(repo, change.Path, commit, sideBySide, contextLines)
+		totalAdded += added
+		totalRemoved += removed
+		totalChanged += changed
+	}
+	fmt.Printf("\nSummary: %s lines added, %s lines removed, %s lines changed\n", green(fmt.Sprint(totalAdded)), red(fmt.Sprint(totalRemoved)), yellow(fmt.Sprint(totalChanged)))
 	return nil
 }
