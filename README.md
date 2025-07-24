@@ -138,6 +138,17 @@ go build -o steria
 sudo cp steria /usr/local/bin/
 ```
 
+## Test Results
+
+All core integration tests pass as of the latest run:
+
+- `TestSteriaWorkflow`: ✅ Passed
+- `TestWebFileUpload`: ✅ Passed
+
+Tested on: Linux 6.15.3-zen1-1-zen, Go version (see go.mod)
+
+Test output is available in `test_output.txt`.
+
 ## Commands
 
 - `done "message" - signer` - The magical command that does everything

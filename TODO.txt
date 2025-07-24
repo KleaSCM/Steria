@@ -53,6 +53,7 @@
 - [x] Unit tests for all core modules
 - [x] Integration tests for main CLI workflow
 - [x] Performance benchmarks for commit and key generation
+- [x] Integration tests for file upload and CLI workflow (all passing as of latest run)
 
 ## 🚧 IN PROGRESS / NEXT UP
 - [ ] Unit tests for all CLI command logic in `cmd/` (branching, projects, repository, workflow)
@@ -64,7 +65,8 @@
 - [ ] Document test coverage and CI status in README
 
 ### Web Interface Enhancements
-- [ ] File upload functionality
+- [x] File upload functionality (integration tested and passing)
+- [ ] Enhanced diff visualization (better diff display with syntax highlighting)
 - [ ] Real-time collaboration features
 - [ ] Advanced file browser with search
 - [ ] Commit visualization interface
@@ -76,6 +78,8 @@
 - [ ] Stash management
 - [ ] Conflict resolution tools
 - [ ] Blame/history for specific lines
+- [ ] Repository search (search across commits, files, and content)
+- [ ] Branch visualization (visual representation of branch relationships)
 
 ### Collaboration Features
 - [ ] Multi-user repository support
@@ -90,6 +94,7 @@
 - [ ] Background indexing
 - [ ] Cache optimization
 - [ ] Distributed storage support
+- [ ] Performance optimization (optimize large repository operations)
 
 ### Security Enhancements
 - [ ] GPG signing for commits
@@ -118,11 +123,10 @@
 
 ## 🎯 PRIORITY FEATURES
 
-1. **File Upload in Web Interface** - Allow users to upload files through the web UI
-2. **Enhanced Diff Visualization** - Better diff display with syntax highlighting
-3. **Repository Search** - Search across commits, files, and content
-4. **Branch Visualization** - Visual representation of branch relationships
-5. **Performance Optimization** - Optimize large repository operations
+- [ ] Enhanced Diff Visualization - Better diff display with syntax highlighting
+- [ ] Repository Search - Search across commits, files, and content
+- [ ] Branch Visualization - Visual representation of branch relationships
+- [ ] Performance Optimization - Optimize large repository operations
 
 ## 🔧 TECHNICAL DEBT
 
