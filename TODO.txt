@@ -86,7 +86,7 @@
 - [x] Cherry-pick functionality
 - [x] Interactive rebase ✅ COMPLETED - User-friendly "steria rebase" command that opens an editor to reorganize commits
 - [x] Stash management
-- [ ] Conflict resolution tools
+- [x] Conflict resolution tools ✅ COMPLETED - CLI, file markers, and integration tests all passing
 - [x] Blame/history for specific lines
 
 ## Collaboration Features
