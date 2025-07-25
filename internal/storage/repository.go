@@ -101,7 +101,10 @@ func loadRepo(path string) (*Repo, error) {
 	}
 
 	headPath := filepath.Join(path, ".steria", "HEAD")
-	os.ReadFile(headPath) // or remove this line entirely if not needed
+	head := ""
+	if data, err := os.ReadFile(headPath); err == nil {
+		head = strings.TrimSpace(string(data))
+	}
 
 	// Read current branch
 	branchPath := filepath.Join(path, ".steria", "branch")
@@ -125,6 +128,7 @@ func loadRepo(path string) (*Repo, error) {
 	repo := &Repo{
 		Path:      path,
 		Config:    &config,
+		Head:      head,
 		Branch:    branch,
 		RemoteURL: remoteURL,
 		BlobStore: &LocalBlobStore{Dir: blobDir},

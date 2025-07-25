@@ -84,7 +84,7 @@
 ## Advanced Version Control
 - [x] Tag system for releases
 - [x] Cherry-pick functionality
-- [ ] Interactive rebase
+- [x] Interactive rebase ✅ COMPLETED - User-friendly "steria rebase" command that opens an editor to reorganize commits
 - [x] Stash management
 - [ ] Conflict resolution tools
 - [x] Blame/history for specific lines
