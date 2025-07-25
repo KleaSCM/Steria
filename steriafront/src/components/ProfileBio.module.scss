@@ -1,0 +1,54 @@
+/*
+Author: KleaSCM
+Email: KleaSCM@gmail.com
+File: ProfileBio.module.scss
+Description: Modular SCSS for ProfileBio. Modern, beautiful, and femme.
+*/
+
+.bioWrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1rem;
+  padding: 1.2rem 1.5rem;
+  box-shadow: 0 2px 8px 0 #a21caf22;
+  font-size: 1.08rem;
+  color: #fff;
+  align-items: center;
+  text-align: center;
+}
+
+.label {
+  font-weight: 600;
+  color: #f472b6;
+  margin-bottom: 0.2rem;
+}
+
+.bio {
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: color 0.18s;
+  border-bottom: 1px dashed #f472b6;
+  min-height: 2.5rem;
+  white-space: pre-line;
+}
+
+.bio:hover {
+  color: #f472b6;
+}
+
+.textarea {
+  font-size: 1.08rem;
+  font-weight: 500;
+  color: #a21caf;
+  background: #fff;
+  border: 2px solid #f472b6;
+  border-radius: 0.7rem;
+  padding: 0.7rem 1.1rem;
+  outline: none;
+  box-shadow: 0 2px 8px 0 #a21caf22;
+  resize: vertical;
+} 

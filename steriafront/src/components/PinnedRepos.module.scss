@@ -1,0 +1,67 @@
+/*
+Author: KleaSCM
+Email: KleaSCM@gmail.com
+File: PinnedRepos.module.scss
+Description: Modular SCSS for PinnedRepos. Modern, beautiful, and femme.
+*/
+
+.pinnedWrapper {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.repoCard {
+  background: rgba(255,255,255,0.10);
+  border-radius: 1.2rem;
+  box-shadow: 0 2px 8px 0 #a21caf22;
+  padding: 1.2rem 1.1rem 1.1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  color: #fff;
+  transition: box-shadow 0.18s, transform 0.12s;
+  cursor: pointer;
+}
+
+.repoCard:hover, .repoCard:focus {
+  box-shadow: 0 4px 16px 0 #f472b655;
+  transform: scale(1.03);
+}
+
+.repoName {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #f472b6;
+  margin-bottom: 0.2rem;
+}
+
+.repoDesc {
+  font-size: 0.98rem;
+  color: #f3e8ff;
+  opacity: 0.85;
+}
+
+.repoMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.langDot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.lang {
+  font-size: 0.98rem;
+  color: #fff;
+  font-weight: 600;
+} 

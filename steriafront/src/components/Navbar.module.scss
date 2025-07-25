@@ -1,0 +1,218 @@
+/*
+Author: KleaSCM
+Email: KleaSCM@gmail.com
+File: Navbar.module.scss
+Description: Modular SCSS for the animated, responsive Navbar. Modern, glassy, elegant. Includes nav links and action buttons.
+*/
+
+// Main navbar container: fixed, glassy, and always on top
+.navbar {
+  width: 100vw;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 2rem;
+  background: rgba(30, 27, 38, 0.85);
+  border-bottom: 1.5px solid rgba(255,255,255,0.10);
+  box-shadow: 0 2px 24px 0 #a21caf22;
+  backdrop-filter: blur(10px) saturate(1.2);
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 20;
+}
+
+// Branding/logo area
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.logo {
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: #fff;
+  text-shadow: 0 2px 16px #a21caf44;
+  background: linear-gradient(90deg, #f472b6 0%, #a21caf 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+// Desktop nav links
+.links {
+  display: flex;
+  align-items: center;
+  gap: 2.2rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.links a {
+  color: #f3e8ff;
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.7rem;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.links a:hover {
+  background: linear-gradient(90deg, #f472b6 0%, #a21caf 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px 0 #a21caf33;
+}
+
+// Action buttons (Sign Up, Sign In)
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+.signUpBtn, .signInBtn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 0.8rem;
+  padding: 0.55rem 1.3rem;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.12s;
+  box-shadow: 0 2px 12px 0 #a21caf22;
+  letter-spacing: 0.2px;
+  outline: none;
+}
+
+.signUpBtn {
+  background: linear-gradient(90deg, #f472b6 0%, #a21caf 100%);
+  color: #fff;
+}
+
+.signUpBtn:hover, .signUpBtn:focus {
+  background: linear-gradient(90deg, #a21caf 0%, #f472b6 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px 0 #f472b655;
+}
+
+.signInBtn {
+  background: rgba(255,255,255,0.10);
+  color: #f3e8ff;
+  border: 1.5px solid #a21caf;
+}
+
+.signInBtn:hover, .signInBtn:focus {
+  background: #a21caf;
+  color: #fff;
+  box-shadow: 0 4px 16px 0 #a21caf55;
+}
+
+// Hamburger menu button (mobile)
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 30;
+  // Controls horizontal position of the hamburger icon
+  margin-left: 0.8rem; // Space from the last element (actions or links)
+  margin-right: 1.8rem; // Space from the right edge of the navbar
+}
+
+.hamburger span {
+  display: block;
+  width: 28px;
+  height: 3px;
+  background: #f3e8ff;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+// Responsive tweaks for nav links and actions
+@media (max-width: 1100px) {
+  .links {
+    gap: 1.2rem;
+  }
+  .actions {
+    gap: 0.7rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .links, .actions {
+    display: none;
+  }
+  .hamburger {
+    display: flex;
+  }
+}
+
+// Mobile menu overlay and content
+.mobileMenuWrapper {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  width: 100vw;
+  z-index: 25;
+  background: transparent;
+}
+
+.mobileMenu {
+  background: rgba(30, 27, 38, 0.97);
+  box-shadow: 0 8px 32px 0 #a21caf33;
+  padding: 2rem 0 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  border-bottom-left-radius: 2rem;
+  border-bottom-right-radius: 2rem;
+}
+
+.mobileMenu li {
+  list-style: none;
+}
+
+.mobileMenu a {
+  color: #f3e8ff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  padding: 0.5rem 1.2rem;
+  border-radius: 0.8rem;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.mobileMenu a:hover {
+  background: linear-gradient(90deg, #f472b6 0%, #a21caf 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px 0 #a21caf33;
+}
+
+// Mobile action buttons (Sign Up, Sign In)
+.mobileActions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+  width: 100%;
+  align-items: center;
+  margin-top: 1.3rem;
+}
+
+.mobileActions .signUpBtn, .mobileActions .signInBtn {
+  width: 80vw;
+  max-width: 320px;
+  font-size: 1.15rem;
+  padding: 0.9rem 0;
+} 

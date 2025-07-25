@@ -1,0 +1,40 @@
+/*
+Author: KleaSCM
+Email: KleaSCM@gmail.com
+File: Footer.module.scss
+Description: Modular SCSS for the animated Footer component. Modern, glassy, and elegant.
+*/
+
+.footer {
+  width: 100vw;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  background: rgba(30, 27, 38, 0.85);
+  border-top: 1.5px solid rgba(255,255,255,0.10);
+  box-shadow: 0 -2px 24px 0 #a21caf22;
+  backdrop-filter: blur(10px) saturate(1.2);
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 0.5rem 1.5rem;
+}
+
+.brand {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f472b6;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 8px #a21caf44;
+}
+
+.copyright {
+  font-size: 0.98rem;
+  color: #f3e8ff;
+  opacity: 0.8;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+} 
