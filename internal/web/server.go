@@ -14,6 +14,8 @@ import (
 	"steria/internal/storage"
 	"time"
 
+	"regexp"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -101,7 +103,7 @@ func BrowserHandler(w http.ResponseWriter, r *http.Request, username string) {
 		fileEntries = append(fileEntries, FileEntry{
 			Name:  entry.Name(),
 			IsDir: entry.IsDir(),
-			Link:  filepath.Join(relPath, entry.Name()),
+			Link:  strings.TrimPrefix(filepath.Join(relPath, entry.Name()), "./"),
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -572,6 +574,73 @@ func buildDirectoryTree(dirPath, userDir string) string {
 	return result
 }
 
+// --- GITHUB-LIKE API ENDPOINTS ---
+// GET /api/profile
+func ProfileHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	// Dummy profile and repo list
+	profile := map[string]interface{}{
+		"username": username,
+		"avatar":   "/static/avatar.png",
+		"bio":      "Sapphic dev, loves code and girls!",
+		"repos": []map[string]interface{}{
+			{"name": "wallpapers", "description": "All my cute wallpapers!", "private": false},
+			{"name": "dotfiles", "description": "My config files", "private": true},
+		},
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(profile)
+}
+
+// GET /api/repos/{repo}/contents?path=...
+func RepoContentsHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	// Parse repo from URL
+	repoRe := regexp.MustCompile(`/api/repos/([^/]+)/contents`)
+	matches := repoRe.FindStringSubmatch(r.URL.Path)
+	if len(matches) < 2 {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	repo := matches[1]
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		path = "."
+	}
+	repoDir := filepath.Join(BaseDir, username, repo)
+	absPath := filepath.Join(repoDir, path)
+	if !strings.HasPrefix(absPath, repoDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	entries, err := os.ReadDir(absPath)
+	if err != nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	var fileEntries []FileEntry
+	for _, entry := range entries {
+		fileEntries = append(fileEntries, FileEntry{
+			Name:  entry.Name(),
+			IsDir: entry.IsDir(),
+			Link:  strings.TrimPrefix(filepath.Join(path, entry.Name()), "./"),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(fileEntries)
+}
+
+// --- API ROUTES REGISTRATION ---
 // Server startup
 func StartServer(addr string) {
 	// Ensure user directory exists
@@ -594,6 +663,8 @@ func StartServer(addr string) {
 	http.HandleFunc("/remotes", RemotesHandler)
 	http.HandleFunc("/remote-add", RemoteAddHandler)
 	http.HandleFunc("/remote-sync", RemoteSyncHandler)
+	http.HandleFunc("/api/profile", ProfileHandler)
+	http.HandleFunc("/api/repos/", RepoContentsHandler)
 	http.HandleFunc("/", WithAuth(BrowserHandler))
 
 	log.Printf("Steria server running on %s ...", addr)
