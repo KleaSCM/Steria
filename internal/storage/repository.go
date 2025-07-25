@@ -1,17 +1,27 @@
 package storage
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"steria/internal/metrics"
 	"steria/internal/utils"
+
+	"sync"
+
+	"container/list"
+
+	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 // Repo represents a Steria repository
@@ -21,6 +31,7 @@ type Repo struct {
 	Head      string // Current commit hash
 	Branch    string // Current branch
 	RemoteURL string
+	BlobStore BlobStore
 }
 
 // Config holds repository configuration
@@ -84,12 +95,8 @@ func loadRepo(path string) (*Repo, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Read current head
 	headPath := filepath.Join(path, ".steria", "HEAD")
-	head := ""
-	if data, err := os.ReadFile(headPath); err == nil {
-		head = string(data)
-	}
+	os.ReadFile(headPath) // or remove this line entirely if not needed
 
 	// Read current branch
 	branchPath := filepath.Join(path, ".steria", "branch")
@@ -105,13 +112,20 @@ func loadRepo(path string) (*Repo, error) {
 		remoteURL = string(data)
 	}
 
-	return &Repo{
+	blobDir := filepath.Join(path, ".steria", "objects", "blobs")
+	if err := os.MkdirAll(blobDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create blob dir: %w", err)
+	}
+
+	repo := &Repo{
 		Path:      path,
 		Config:    &config,
-		Head:      head,
 		Branch:    branch,
 		RemoteURL: remoteURL,
-	}, nil
+		BlobStore: &LocalBlobStore{Dir: blobDir},
+	}
+
+	return repo, nil
 }
 
 // initRepo initializes a new repository
@@ -160,6 +174,7 @@ func initRepo(path string) (*Repo, error) {
 		Config:    config,
 		Branch:    "main",
 		RemoteURL: "",
+		BlobStore: &LocalBlobStore{Dir: filepath.Join(path, ".steria", "objects", "blobs")},
 	}
 
 	initialCommit, err := repo.CreateCommit("Initial commit", "KleaSCM")
@@ -260,33 +275,44 @@ func (r *Repo) CreateCommit(message, author string) (*Commit, error) {
 			if err == nil {
 				totalBytes += info.Size()
 			}
-			// Store file blob
-			hash, err := r.calculateFileHash(filePath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to hash file %s: %w", change.Path, err)
-			}
 			blobDir := filepath.Join(r.Path, ".steria", "objects", "blobs")
 			if err := os.MkdirAll(blobDir, 0755); err != nil {
 				return nil, fmt.Errorf("failed to create blob dir: %w", err)
 			}
-			blobPath := filepath.Join(blobDir, hash)
-			if _, err := os.Stat(blobPath); os.IsNotExist(err) {
-				src, err := os.Open(filePath)
-				if err != nil {
-					return nil, fmt.Errorf("failed to open file for blob: %w", err)
+			var prevHash string
+			if r.Head != "" {
+				parentCommit, err := r.LoadCommit(r.Head)
+				if err == nil {
+					prevHash = parentCommit.FileBlobs[change.Path]
 				}
-				defer src.Close()
-				dst, err := os.Create(blobPath)
-				if err != nil {
-					return nil, fmt.Errorf("failed to create blob file: %w", err)
-				}
-				if _, err := io.Copy(dst, src); err != nil {
-					dst.Close()
-					return nil, fmt.Errorf("failed to write blob: %w", err)
-				}
-				dst.Close()
 			}
-			commit.FileBlobs[change.Path] = hash
+			if info.Size() > 1024*1024 && prevHash != "" { // >1MB and previous version exists
+				// Delta encoding
+				baseData, err := ReadBlobDecompressed(r.BlobStore, prevHash)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read base blob for delta: %w", err)
+				}
+				newData, err := os.ReadFile(filePath)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read new file for delta: %w", err)
+				}
+				deltaHash := change.Hash + "_delta"
+				patchPath := filepath.Join(blobDir, deltaHash)
+				if err := writeDeltaPatch(baseData, newData, patchPath); err != nil {
+					return nil, fmt.Errorf("failed to write delta patch: %w", err)
+				}
+				commit.FileBlobs[change.Path] = "delta:" + prevHash + ":" + deltaHash
+			} else {
+				// Full blob (compressed)
+				hash, err := r.calculateFileHash(filePath)
+				if err != nil {
+					return nil, fmt.Errorf("failed to hash file %s: %w", change.Path, err)
+				}
+				if err := writeBlobCompressed(r.BlobStore, hash, filePath); err != nil {
+					return nil, fmt.Errorf("failed to write compressed blob for %s: %w", change.Path, err)
+				}
+				commit.FileBlobs[change.Path] = hash
+			}
 		}
 	}
 
@@ -449,4 +475,330 @@ func (r *Repo) loadCommit(hash string) (*Commit, error) {
 	}
 
 	return &commit, nil
+}
+
+func writeBlobCompressed(blobStore BlobStore, hash, filePath string) error {
+	in, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	if _, err := io.Copy(gw, in); err != nil {
+		gw.Close()
+		return err
+	}
+	if err := gw.Close(); err != nil {
+		return err
+	}
+	return blobStore.PutBlob(hash, buf.Bytes())
+}
+
+// Update ReadBlobDecompressed to handle delta:<basehash>:<deltahash> entries.
+// Add a new exported function ReadFileBlobDecompressed(blobDir string, blobRef string) ([]byte, error) that handles both normal and delta blobs.
+func ReadBlobDecompressed(blobStore BlobStore, hash string) ([]byte, error) {
+	// Try .gz first
+	gzPath := hash + ".gz"
+	if data, err := blobStore.GetBlob(gzPath); err == nil {
+		gr, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		defer gr.Close()
+		return ioutil.ReadAll(gr)
+	}
+	// Fallback to plain
+	plainPath := hash
+	return blobStore.GetBlob(plainPath)
+}
+
+// Add helpers for delta encoding/decoding
+func writeDeltaPatch(baseData, newData []byte, patchPath string) error {
+	dmp := diffmatchpatch.New()
+	baseStr := string(baseData)
+	newStr := string(newData)
+	diffs := dmp.DiffMain(baseStr, newStr, false)
+	patches := dmp.PatchMake(baseStr, diffs)
+	patchStr := dmp.PatchToText(patches)
+	return os.WriteFile(patchPath, []byte(patchStr), 0644)
+}
+
+func applyDeltaPatch(baseData []byte, patchData []byte) ([]byte, error) {
+	dmp := diffmatchpatch.New()
+	baseStr := string(baseData)
+	patches, err := dmp.PatchFromText(string(patchData))
+	if err != nil {
+		return nil, err
+	}
+	restored, _ := dmp.PatchApply(patches, baseStr)
+	return []byte(restored), nil
+}
+
+// LRU cache for blobs and diffs
+const lruCacheSize = 128
+
+type lruEntry struct {
+	key   string
+	value []byte
+}
+
+type lruCache struct {
+	mu    sync.Mutex
+	cache map[string]*list.Element
+	list  *list.List
+	limit int
+}
+
+func newLRUCache(limit int) *lruCache {
+	return &lruCache{
+		cache: make(map[string]*list.Element),
+		list:  list.New(),
+		limit: limit,
+	}
+}
+
+func (c *lruCache) Get(key string) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if elem, ok := c.cache[key]; ok {
+		c.list.MoveToFront(elem)
+		return elem.Value.(*lruEntry).value, true
+	}
+	return nil, false
+}
+
+func (c *lruCache) Put(key string, value []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if elem, ok := c.cache[key]; ok {
+		c.list.MoveToFront(elem)
+		elem.Value.(*lruEntry).value = value
+		return
+	}
+	if c.list.Len() >= c.limit {
+		oldest := c.list.Back()
+		if oldest != nil {
+			c.list.Remove(oldest)
+			delete(c.cache, oldest.Value.(*lruEntry).key)
+		}
+	}
+	e := &lruEntry{key, value}
+	elem := c.list.PushFront(e)
+	c.cache[key] = elem
+}
+
+var (
+	blobCache = newLRUCache(lruCacheSize)
+	diffCache = newLRUCache(lruCacheSize)
+)
+
+// Add disk cache support for blobs
+func ReadFileBlobDecompressed(blobStore BlobStore, blobRef string) ([]byte, error) {
+	cacheKey := blobRef
+	if data, ok := blobCache.Get(cacheKey); ok {
+		return data, nil
+	}
+	// Disk cache path
+	cacheDir := filepath.Join(filepath.Dir(blobRef), "..", "cache")
+	os.MkdirAll(cacheDir, 0755)
+	cacheFile := filepath.Join(cacheDir, safeCacheFileName(blobRef))
+	if data, err := os.ReadFile(cacheFile); err == nil {
+		blobCache.Put(cacheKey, data)
+		return data, nil
+	}
+	if strings.HasPrefix(blobRef, "delta:") {
+		parts := strings.Split(blobRef, ":")
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("invalid delta blob ref: %s", blobRef)
+		}
+		baseHash := parts[1]
+		deltaHash := parts[2]
+		baseData, err := ReadFileBlobDecompressed(blobStore, baseHash)
+		if err != nil {
+			return nil, err
+		}
+		patchPath := deltaHash
+		patchData, err := os.ReadFile(patchPath)
+		if err != nil {
+			return nil, err
+		}
+		result, err := applyDeltaPatch(baseData, patchData)
+		if err == nil {
+			blobCache.Put(cacheKey, result)
+			os.WriteFile(cacheFile, result, 0644)
+		}
+		return result, err
+	}
+	data, err := ReadBlobDecompressed(blobStore, blobRef)
+	if err == nil {
+		blobCache.Put(cacheKey, data)
+		os.WriteFile(cacheFile, data, 0644)
+	}
+	return data, err
+}
+
+// safeCacheFileName returns a filesystem-safe cache file name for a blobRef
+func safeCacheFileName(blobRef string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(blobRef, ":", "_"), "/", "_")
+}
+
+// BlobStore interface abstracts blob storage for distributed support
+// LocalBlobStore implements BlobStore for local disk storage
+
+type BlobStore interface {
+	PutBlob(hash string, data []byte) error
+	GetBlob(hash string) ([]byte, error)
+	HasBlob(hash string) bool
+	ListBlobs() ([]string, error)
+}
+
+type LocalBlobStore struct {
+	Dir string
+}
+
+func (l *LocalBlobStore) PutBlob(hash string, data []byte) error {
+	path := filepath.Join(l.Dir, hash+".gz")
+	return os.WriteFile(path, data, 0644)
+}
+
+func (l *LocalBlobStore) GetBlob(hash string) ([]byte, error) {
+	path := filepath.Join(l.Dir, hash+".gz")
+	return os.ReadFile(path)
+}
+
+func (l *LocalBlobStore) HasBlob(hash string) bool {
+	path := filepath.Join(l.Dir, hash+".gz")
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func (l *LocalBlobStore) ListBlobs() ([]string, error) {
+	entries, err := os.ReadDir(l.Dir)
+	if err != nil {
+		return nil, err
+	}
+	var blobs []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".gz") {
+			blobs = append(blobs, strings.TrimSuffix(e.Name(), ".gz"))
+		}
+	}
+	return blobs, nil
+}
+
+// Index structure and background indexer
+var indexerOnce sync.Once
+
+// StartBackgroundIndexer launches a goroutine to index file contents and commit metadata.
+func StartBackgroundIndexer(repo *Repo) {
+	indexerOnce.Do(func() {
+		go func() {
+			for {
+				_ = BuildIndex(repo)
+				time.Sleep(10 * time.Second) // Reindex every 10s (tune as needed)
+			}
+		}()
+	})
+}
+
+// BuildIndex scans all files and commits and updates the index files in .steria/index/.
+func BuildIndex(repo *Repo) error {
+	indexDir := filepath.Join(repo.Path, ".steria", "index")
+	os.MkdirAll(indexDir, 0755)
+	fileIndex := map[string][]string{}   // token -> []filePath
+	commitIndex := map[string][]string{} // token -> []commitHash
+
+	// Index file contents
+	for _, file := range getAllFiles(repo.Path) {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		for _, token := range tokenize(string(data)) {
+			fileIndex[token] = append(fileIndex[token], file)
+		}
+	}
+	// Index commit metadata
+	commits := getAllCommits(repo)
+	for _, c := range commits {
+		for _, token := range tokenize(c.Message + " " + c.Author) {
+			commitIndex[token] = append(commitIndex[token], c.Hash)
+		}
+	}
+	// Save indexes
+	b, _ := json.MarshalIndent(fileIndex, "", "  ")
+	os.WriteFile(filepath.Join(indexDir, "file_index.json"), b, 0644)
+	b, _ = json.MarshalIndent(commitIndex, "", "  ")
+	os.WriteFile(filepath.Join(indexDir, "commit_index.json"), b, 0644)
+	return nil
+}
+
+// getAllFiles returns all file paths in the repo (excluding .steria/)
+func getAllFiles(root string) []string {
+	var files []string
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() && filepath.Base(path) == ".steria" {
+			return filepath.SkipDir
+		}
+		if !info.IsDir() {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files
+}
+
+// getAllCommits returns all commits in the repo
+func getAllCommits(repo *Repo) []*Commit {
+	var commits []*Commit
+	seen := map[string]bool{}
+	for hash := repo.Head; hash != "" && !seen[hash]; {
+		seen[hash] = true
+		c, err := repo.LoadCommit(hash)
+		if err != nil {
+			break
+		}
+		commits = append(commits, c)
+		hash = c.Parent
+	}
+	return commits
+}
+
+// tokenize splits text into lowercase words
+func tokenize(text string) []string {
+	words := strings.FieldsFunc(text, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9')
+	})
+	for i, w := range words {
+		words[i] = strings.ToLower(w)
+	}
+	return words
+}
+
+// SearchFileIndex returns file paths matching a token
+func SearchFileIndex(repo *Repo, token string) []string {
+	indexPath := filepath.Join(repo.Path, ".steria", "index", "file_index.json")
+	b, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil
+	}
+	var idx map[string][]string
+	json.Unmarshal(b, &idx)
+	return idx[strings.ToLower(token)]
+}
+
+// SearchCommitIndex returns commit hashes matching a token
+func SearchCommitIndex(repo *Repo, token string) []string {
+	indexPath := filepath.Join(repo.Path, ".steria", "index", "commit_index.json")
+	b, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil
+	}
+	var idx map[string][]string
+	json.Unmarshal(b, &idx)
+	return idx[strings.ToLower(token)]
 }

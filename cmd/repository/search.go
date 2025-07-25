@@ -75,6 +75,25 @@ func NewSearchCmd() *cobra.Command {
 	return cmd
 }
 
+func NewReindexCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "reindex",
+		Short: "Rebuild the background search index for this repository",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			repo, err := storage.LoadOrInitRepo(cwd)
+			if err != nil {
+				return err
+			}
+			fmt.Println("Rebuilding index...")
+			return storage.BuildIndex(repo)
+		},
+	}
+}
+
 func searchFilesInCommits(repo *storage.Repo, pattern string, useRegex bool, author, pathFilter string, contextLines int) error {
 	cyan := color.New(color.FgCyan).SprintFunc()
 	magenta := color.New(color.FgMagenta).SprintFunc()
@@ -83,6 +102,18 @@ func searchFilesInCommits(repo *storage.Repo, pattern string, useRegex bool, aut
 	red := color.New(color.FgRed).SprintFunc()
 
 	fmt.Printf("%s Searching file contents in all commits for pattern: %s\n", cyan("🔍"), magenta(pattern))
+
+	// Try index first
+	indexed := storage.SearchFileIndex(repo, pattern)
+	if len(indexed) > 0 {
+		fmt.Printf("%s Index hit! %d files matched for token '%s':\n", green("⚡"), len(indexed), pattern)
+		for _, f := range indexed {
+			fmt.Println(f)
+		}
+		return nil
+	}
+	// If not found, trigger background reindex
+	go storage.BuildIndex(repo)
 
 	var re *regexp.Regexp
 	if useRegex {
@@ -170,6 +201,18 @@ func searchCommitsMeta(repo *storage.Repo, pattern string, useRegex bool, author
 	red := color.New(color.FgRed).SprintFunc()
 
 	fmt.Printf("%s Searching commit messages and metadata for pattern: %s\n", cyan("🔍"), magenta(pattern))
+
+	// Try index first
+	indexed := storage.SearchCommitIndex(repo, pattern)
+	if len(indexed) > 0 {
+		fmt.Printf("%s Index hit! %d commits matched for token '%s':\n", green("⚡"), len(indexed), pattern)
+		for _, h := range indexed {
+			fmt.Println(h)
+		}
+		return nil
+	}
+	// If not found, trigger background reindex
+	go storage.BuildIndex(repo)
 
 	var re *regexp.Regexp
 	if useRegex {

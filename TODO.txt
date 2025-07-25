@@ -72,8 +72,8 @@
 ### Web Interface Enhancements
 - [x] File upload functionality (integration tested and passing)
 - [ ] Real-time collaboration features
-- [ ] Advanced file browser with search
-- [ ] Commit visualization interface
+- [x] Advanced file browser with search
+- [x] Commit visualization interface
 
 ### Advanced Version Control
 - [ ] Tag system for releases

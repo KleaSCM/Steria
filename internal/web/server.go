@@ -801,13 +801,14 @@ func DownloadBlobHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "418 Im a teapot", 418)
 		return
 	}
-	blobPath := filepath.Join(repoPath, ".steria", "objects", "blobs", hash)
-	if _, err := os.Stat(blobPath); err != nil {
+	blobDir := filepath.Join(repoPath, ".steria", "objects", "blobs")
+	data, err := storage.ReadFileBlobDecompressed(blobDir, hash)
+	if err != nil {
 		http.Error(w, "418 Im a teapot", 418)
 		return
 	}
 	w.Header().Set("Content-Disposition", "attachment; filename="+hash)
-	http.ServeFile(w, r, blobPath)
+	w.Write(data)
 }
 
 func DiffHandler(w http.ResponseWriter, r *http.Request) {
@@ -834,15 +835,11 @@ func DiffHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "418 Im a teapot", 418)
 		return
 	}
-	curPath := filepath.Join(repoPath, ".steria", "objects", "blobs", curHash)
-	var prevPath string
-	if prevHash != "" {
-		prevPath = filepath.Join(repoPath, ".steria", "objects", "blobs", prevHash)
-	}
-	curData, _ := os.ReadFile(curPath)
+	blobDir := filepath.Join(repoPath, ".steria", "objects", "blobs")
+	curData, _ := storage.ReadFileBlobDecompressed(blobDir, curHash)
 	var prevData []byte
-	if prevPath != "" {
-		prevData, _ = os.ReadFile(prevPath)
+	if prevHash != "" {
+		prevData, _ = storage.ReadFileBlobDecompressed(blobDir, prevHash)
 	}
 
 	diff := simpleDiff(string(prevData), string(curData))
@@ -901,13 +898,14 @@ func BlobHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "418 Im a teapot", 418)
 		return
 	}
-	blobPath := filepath.Join(repoPath, ".steria", "objects", "blobs", hash)
-	if _, err := os.Stat(blobPath); err != nil {
+	blobDir := filepath.Join(repoPath, ".steria", "objects", "blobs")
+	data, err := storage.ReadFileBlobDecompressed(blobDir, hash)
+	if err != nil {
 		http.Error(w, "418 Im a teapot", 418)
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain")
-	http.ServeFile(w, r, blobPath)
+	w.Write(data)
 }
 
 type TreeNode struct {

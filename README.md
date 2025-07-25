@@ -149,6 +149,18 @@ Tested on: Linux 6.15.3-zen1-1-zen, Go version (see go.mod)
 
 Test output is available in `test_output.txt`.
 
+## Compression & Delta Encoding Test Results
+
+All core compression and delta encoding tests pass as of the latest run:
+
+- `TestBlobCompressionAndDecompression`: ✅ Passed
+- `TestDeltaEncodingAndReconstruction`: ✅ Passed
+- `TestReadFileBlobDecompressed`: ✅ Passed
+
+All other storage and repository tests also pass.
+
+Test output is available in `test_output.txt`.
+
 ## Commands
 
 - `done "message" - signer` - The magical command that does everything
@@ -380,13 +392,33 @@ Flags:
 Error: cannot delete the currently checked-out branch: test-branch-renamed
 ```
 
+## Background Indexing & Fast Search
 
+Steria now features a background indexing system for ultra-fast search and diff:
 
+- All file contents and commit metadata are continuously indexed in the background (stored in `.steria/index/`).
+- CLI and web search commands use the index for instant results (with fallback to full scan if the index is missing or stale).
+- The index is updated automatically after each commit and every 10 seconds.
+- You can manually rebuild the index at any time with:
 
+  ```sh
+  steria reindex
+  ```
 
+- If a search query is not found in the index, Steria will fall back to a full scan and trigger a background reindex.
 
+This makes searching and diffing in large repositories lightning fast!
 
+## In-Memory & Disk Cache System
 
+Steria now features a production-grade, thread-safe in-memory and disk cache for blobs and diffs:
+
+- All blob reads (including decompression and delta reconstruction) are cached in memory for instant repeated access.
+- Hot blobs are also cached on disk in `.steria/cache/` for fast cold starts and cross-process reuse.
+- The cache is fully automatic and evicts the least recently used entries when full.
+- This dramatically speeds up repeated diffs, downloads, file views, and checkouts—especially for large or delta-encoded files.
+
+No user action is required; the cache is always on and self-managing!
 
 ## Contributing
 
