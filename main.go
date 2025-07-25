@@ -46,6 +46,8 @@ func main() {
 	rootCmd.AddCommand(repository.NewRemoteCmd())
 	rootCmd.AddCommand(repository.NewPushCmd())
 	rootCmd.AddCommand(repository.NewPullCmd())
+	rootCmd.AddCommand(repository.NewTagCmd())
+	rootCmd.AddCommand(repository.NewCherryPickCmd())
 
 	rootCmd.AddCommand(workflow.NewCommitCmd())
 	rootCmd.AddCommand(workflow.NewDoneCmd())
