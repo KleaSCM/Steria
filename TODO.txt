@@ -1,4 +1,4 @@
-# Steria Project TODO
+# Steria TODO List
 
 ## ✅ COMPLETED FEATURES
 
@@ -25,6 +25,8 @@
 - [x] `steria diff` - Show file differences with status indicators
 - [x] `steria restore` - Restore files from previous commits
 - [x] `steria ignore` - Interactive .steriaignore management
+- [x] `steria search` - Search repository content
+- [x] `steria branch-graph` - Visualize branch structure
 
 ### Project Management
 - [x] `steria projects add` - Add new projects
@@ -39,6 +41,28 @@
 - [x] `steria rename-branch` - Rename branches
 - [x] `steria switch-branch` - Switch between branches
 
+### Distributed Storage
+- [x] `steria remote add` - Add remote (local/http/s3/peer)
+- [x] `steria remote list` - List remotes
+- [x] `steria push` - Push blobs to remote
+- [x] `steria pull` - Pull blobs from remote
+- [x] Auto-sync to remotes after commits
+- [x] Web UI integration for remote management
+
+### Performance & Scalability
+- [x] Repository compression (gzip)
+- [x] Delta encoding for large files
+- [x] Background indexing for fast search
+- [x] Cache optimization (LRU + disk cache)
+- [x] Distributed storage support
+
+### Web Interface Enhancements
+- [x] File upload functionality
+- [x] Advanced file browser with search
+- [x] Commit visualization interface
+- [x] Real-time collaboration features
+- [x] Remote management UI (add, list, push, pull)
+
 ### Documentation & Testing
 - [x] Comprehensive CLI command documentation (SteriaCommands.txt)
 - [x] Project structure with Docs/, Tests/, and Jupyter notebooks/ directories
@@ -48,34 +72,16 @@
 - [x] Comprehensive unit test suite for core, storage, metrics, security, utils, and core modules
 - [x] Integration tests for main CLI workflow
 - [x] Performance benchmarks for storage and security modules
-
-### Testing & Quality
-- [x] Unit tests for all core modules
-- [x] Integration tests for main CLI workflow
-- [x] Performance benchmarks for commit and key generation
-- [x] Integration tests for file upload and CLI workflow (all passing as of latest run)
-
-### Documentation
-- [x] API documentation
-- [x] User guides and tutorials
-- [x] Developer onboarding docs
-- [x] Architecture diagrams
-- [x] Best practices guide
+- [x] Repository compression and delta encoding documentation
 
 ## 🎯 PRIORITY FEATURES
 
-- [x] Enhanced Diff Visualization - Better diff display with syntax highlighting (fully implemented and tested)
-- [x] Repository Search - Search across commits, files, and content (fully implemented and tested)
-- [x] Branch Visualization - Visual representation of branch relationships (fully implemented and tested)
-- [x] Performance Optimization - Optimize large repository operations (fully implemented and tested)
+- [x] Enhanced Diff Visualization (better diff display with syntax highlighting)
+- [x] Repository Search (search across commits, files, and content)
+- [x] Branch Visualization (visual representation of branch relationships)
+- [x] Performance Optimization (optimize large repository operations)
 
-### Web Interface Enhancements
-- [x] File upload functionality (integration tested and passing)
-- [ ] Real-time collaboration features
-- [x] Advanced file browser with search
-- [x] Commit visualization interface
-
-### Advanced Version Control
+## Advanced Version Control
 - [ ] Tag system for releases
 - [ ] Cherry-pick functionality
 - [ ] Interactive rebase
@@ -83,55 +89,28 @@
 - [ ] Conflict resolution tools
 - [ ] Blame/history for specific lines
 
-### Collaboration Features
+## Collaboration Features
 - [ ] Multi-user repository support
 - [ ] Pull request system
 - [ ] Code review interface
 - [ ] Team permissions management
 - [ ] Activity feeds and notifications
 
-### Performance & Scalability
-- [ ] Repository compression
-- [ ] Delta encoding for large files
-- [ ] Background indexing
-- [ ] Cache optimization
-- [ ] Distributed storage support
-
-### Security Enhancements
+## Security Enhancements
 - [ ] GPG signing for commits
 - [ ] Two-factor authentication
 - [ ] Audit logging
 - [ ] Encrypted repositories
 - [ ] Access control lists
 
-### Developer Experience
+## Developer Experience
 - [ ] IDE integration plugins
 - [ ] Git compatibility layer
 - [ ] Migration tools from other VCS
 - [ ] Backup and recovery tools
 - [ ] Performance profiling dashboard
 
-### Testing & Quality
-- [ ] Security vulnerability scanning
-- [ ] Code coverage reporting
-
-## 🔧 TECHNICAL DEBT
-
-- [ ] Refactor command structure for better modularity
-- [ ] Improve error handling and user feedback
-- [ ] Add comprehensive logging system
-- [ ] Optimize memory usage for large repositories
-- [ ] Implement proper configuration management
-
-## 📊 METRICS & MONITORING
-
-- [ ] Repository size tracking
-- [ ] Command execution time monitoring
-- [ ] User activity analytics
-- [ ] Error rate tracking
-- [ ] Performance regression detection
-
-## 🚧 IN PROGRESS / NEXT UP
+## Testing & Quality
 - [ ] Unit tests for all CLI command logic in `cmd/` (branching, projects, repository, workflow)
 - [ ] Expand integration tests for multi-branch, merge, restore, ignore, and remote workflows
 - [ ] Add more edge case and error handling tests for all modules
@@ -139,3 +118,22 @@
 - [ ] Set up CI automation (e.g., GitHub Actions) to run all tests and benchmarks on every push/PR
 - [ ] Add code coverage reporting and badge
 - [ ] Document test coverage and CI status in README
+- [ ] Security vulnerability scanning
+- [ ] Code coverage reporting
+
+## Technical Debt
+- [ ] Refactor command structure for better modularity
+- [ ] Improve error handling and user feedback
+- [ ] Add comprehensive logging system
+- [ ] Optimize memory usage for large repositories
+- [ ] Implement proper configuration management
+
+## Metrics & Monitoring
+- [ ] Repository size tracking
+
+## Documentation
+- [x] Repository compression and delta encoding documentation
+- [ ] Distributed storage documentation
+- [ ] Web interface user guide
+- [ ] CLI command reference
+- [ ] API documentation for web endpoints

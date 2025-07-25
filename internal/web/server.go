@@ -141,6 +141,15 @@ var tmpl = template.Must(template.New("browser").Parse(`
                 <div class="commit-btn">
                     <button onclick="showCommitModal()">Show Commit Graph</button>
                 </div>
+                
+                <!-- Remote Management -->
+                <div class="remote-section" style="margin-top: 2em; padding: 1em; background: #f8f0ff; border-radius: 8px;">
+                    <h3>Remote Management</h3>
+                    <button onclick="showRemotes()" style="margin-right: 1em; padding: 0.5em 1em; background: #2177b4; color: white; border: none; border-radius: 6px; cursor: pointer;">View Remotes</button>
+                    <button onclick="showAddRemote()" style="margin-right: 1em; padding: 0.5em 1em; background: #008000; color: white; border: none; border-radius: 6px; cursor: pointer;">Add Remote</button>
+                    <button onclick="syncRemote('push')" style="margin-right: 1em; padding: 0.5em 1em; background: #b4007a; color: white; border: none; border-radius: 6px; cursor: pointer;">Push to Remote</button>
+                    <button onclick="syncRemote('pull')" style="padding: 0.5em 1em; background: #ff6600; color: white; border: none; border-radius: 6px; cursor: pointer;">Pull from Remote</button>
+                </div>
             </div>
         </div>
         <!-- Commit Modal -->
@@ -391,6 +400,81 @@ var tmpl = template.Must(template.New("browser").Parse(`
                 detailsPanel.innerHTML = '<div class="err">Failed to load file content: ' + error + '</div>';
             });
     }
+    
+    function showRemotes() {
+        fetch('/remotes?path={{.RelPath}}')
+            .then(response => response.json())
+            .then(data => {
+                var html = '<h3>Configured Remotes:</h3>';
+                if (data.remotes && data.remotes.length > 0) {
+                    html += '<ul>';
+                    data.remotes.forEach(function(remote) {
+                        html += '<li><strong>' + remote.name + '</strong>: ' + remote.url + ' (' + remote.type + ')</li>';
+                    });
+                    html += '</ul>';
+                } else {
+                    html += '<p>No remotes configured.</p>';
+                }
+                alert(html);
+            })
+            .catch(error => {
+                alert('Failed to load remotes: ' + error);
+            });
+    }
+    
+    function showAddRemote() {
+        var name = prompt('Enter remote name:');
+        if (!name) return;
+        
+        var type = prompt('Enter remote type (local, http, s3, peer):');
+        if (!type) return;
+        
+        var url = prompt('Enter remote URL/path:');
+        if (!url) return;
+        
+        var formData = new FormData();
+        formData.append('name', name);
+        formData.append('type', type);
+        formData.append('url', url);
+        
+        fetch('/remote-add?path={{.RelPath}}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Remote added successfully!');
+            } else {
+                alert('Failed to add remote.');
+            }
+        })
+        .catch(error => {
+            alert('Failed to add remote: ' + error);
+        });
+    }
+    
+    function syncRemote(action) {
+        var remote = prompt('Enter remote name (or leave empty for "origin"):');
+        if (remote === null) return;
+        if (!remote) remote = 'origin';
+        
+        var url = '/remote-sync?path={{.RelPath}}&action=' + action + '&remote=' + encodeURIComponent(remote);
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(action.charAt(0).toUpperCase() + action.slice(1) + ' completed successfully!');
+                } else {
+                    alert(action.charAt(0).toUpperCase() + action.slice(1) + ' failed.');
+                }
+            })
+            .catch(error => {
+                alert(action.charAt(0).toUpperCase() + action.slice(1) + ' failed: ' + error);
+            });
+    }
+    
     window.onclick = function(event) {
         var modal = document.getElementById('commitModal');
         if (event.target == modal) {
@@ -974,8 +1058,251 @@ func StartServer(addr string) {
 	http.HandleFunc("/download-blob", DownloadBlobHandler)
 	http.HandleFunc("/diff", DiffHandler)
 	http.HandleFunc("/blob", BlobHandler)
+	http.HandleFunc("/remotes", RemotesHandler)
+	http.HandleFunc("/remote-add", RemoteAddHandler)
+	http.HandleFunc("/remote-sync", RemoteSyncHandler)
 	http.HandleFunc("/", WithAuth(BrowserHandler))
 
 	log.Printf("Steria server running on %s ...", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
+}
+
+func RemotesHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		relPath = "."
+	}
+	userDir := filepath.Join(BaseDir, username)
+	repoPath := filepath.Join(userDir, relPath)
+	if !strings.HasPrefix(repoPath, userDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+
+	remotesPath := filepath.Join(repoPath, ".steria", "remotes.json")
+	data, err := os.ReadFile(remotesPath)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"remotes":[]}`)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
+}
+
+func RemoteAddHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		relPath = "."
+	}
+	userDir := filepath.Join(BaseDir, username)
+	repoPath := filepath.Join(userDir, relPath)
+	if !strings.HasPrefix(repoPath, userDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+
+	if r.Method == "POST" {
+		r.ParseForm()
+		name := r.FormValue("name")
+		typ := r.FormValue("type")
+		url := r.FormValue("url")
+
+		remotesPath := filepath.Join(repoPath, ".steria", "remotes.json")
+		var rf struct {
+			Remotes []struct {
+				Name string `json:"name"`
+				Type string `json:"type"`
+				URL  string `json:"url"`
+			} `json:"remotes"`
+		}
+
+		data, err := os.ReadFile(remotesPath)
+		if err == nil {
+			json.Unmarshal(data, &rf)
+		}
+
+		// Add or update remote
+		found := false
+		for i, remote := range rf.Remotes {
+			if remote.Name == name {
+				rf.Remotes[i] = struct {
+					Name string `json:"name"`
+					Type string `json:"type"`
+					URL  string `json:"url"`
+				}{Name: name, Type: typ, URL: url}
+				found = true
+				break
+			}
+		}
+		if !found {
+			rf.Remotes = append(rf.Remotes, struct {
+				Name string `json:"name"`
+				Type string `json:"type"`
+				URL  string `json:"url"`
+			}{Name: name, Type: typ, URL: url})
+		}
+
+		// Save remotes
+		newData, _ := json.MarshalIndent(rf, "", "  ")
+		os.WriteFile(remotesPath, newData, 0644)
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"status":"success"}`)
+		return
+	}
+
+	// Return HTML form
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprint(w, `
+		<html><body>
+		<h2>Add Remote</h2>
+		<form method="POST">
+			<input name="name" placeholder="Remote name" required><br>
+			<select name="type" required>
+				<option value="local">Local</option>
+				<option value="http">HTTP</option>
+				<option value="s3">S3</option>
+				<option value="peer">Peer-to-Peer</option>
+			</select><br>
+			<input name="url" placeholder="URL/Path" required><br>
+			<button type="submit">Add Remote</button>
+		</form>
+		</body></html>
+	`)
+}
+
+func RemoteSyncHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("steria_session")
+	if err != nil || Sessions[cookie.Value] == "" {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+	username := Sessions[cookie.Value]
+	relPath := r.URL.Query().Get("path")
+	if relPath == "" {
+		relPath = "."
+	}
+	userDir := filepath.Join(BaseDir, username)
+	repoPath := filepath.Join(userDir, relPath)
+	if !strings.HasPrefix(repoPath, userDir) {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+
+	action := r.URL.Query().Get("action") // "push" or "pull"
+	remoteName := r.URL.Query().Get("remote")
+	if remoteName == "" {
+		remoteName = "origin"
+	}
+
+	// Load remotes
+	remotesPath := filepath.Join(repoPath, ".steria", "remotes.json")
+	data, err := os.ReadFile(remotesPath)
+	if err != nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+
+	var rf struct {
+		Remotes []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+			URL  string `json:"url"`
+		} `json:"remotes"`
+	}
+
+	if err := json.Unmarshal(data, &rf); err != nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+
+	// Find remote
+	var remote *struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+		URL  string `json:"url"`
+	}
+	for _, r := range rf.Remotes {
+		if r.Name == remoteName {
+			remote = &r
+			break
+		}
+	}
+
+	if remote == nil {
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+
+	// Perform sync
+	var store storage.BlobStore
+	switch remote.Type {
+	case "http":
+		store = &storage.HTTPBlobStore{BaseURL: remote.URL}
+	case "s3":
+		s, err := storage.NewS3BlobStore(remote.URL, "")
+		if err != nil {
+			http.Error(w, "418 Im a teapot", 418)
+			return
+		}
+		store = s
+	case "peer":
+		store = &storage.PeerToPeerBlobStore{Peers: strings.Split(remote.URL, ",")}
+	case "local":
+		store = &storage.LocalBlobStore{Dir: remote.URL}
+	default:
+		http.Error(w, "418 Im a teapot", 418)
+		return
+	}
+
+	local := &storage.LocalBlobStore{Dir: filepath.Join(repoPath, ".steria", "objects", "blobs")}
+
+	if action == "push" {
+		blobs, err := local.ListBlobs()
+		if err != nil {
+			http.Error(w, "418 Im a teapot", 418)
+			return
+		}
+		for _, blob := range blobs {
+			if !store.HasBlob(blob) {
+				data, err := local.GetBlob(blob)
+				if err != nil {
+					continue
+				}
+				store.PutBlob(blob, data)
+			}
+		}
+	} else if action == "pull" {
+		blobs, err := store.ListBlobs()
+		if err != nil {
+			http.Error(w, "418 Im a teapot", 418)
+			return
+		}
+		for _, blob := range blobs {
+			if !local.HasBlob(blob) {
+				data, err := store.GetBlob(blob)
+				if err != nil {
+					continue
+				}
+				local.PutBlob(blob, data)
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"status":"success"}`)
 }

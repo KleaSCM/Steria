@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,10 @@ import (
 
 	"container/list"
 
+	context "context"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
@@ -338,7 +343,68 @@ func (r *Repo) CreateCommit(message, author string) (*Commit, error) {
 		return nil, fmt.Errorf("failed to update HEAD: %w", err)
 	}
 
+	// Auto-sync to remotes after successful commit
+	go r.autoSyncToRemotes()
+
 	return commit, nil
+}
+
+// autoSyncToRemotes automatically pushes to all configured remotes
+func (r *Repo) autoSyncToRemotes() {
+	remotesPath := filepath.Join(r.Path, ".steria", "remotes.json")
+	data, err := os.ReadFile(remotesPath)
+	if err != nil {
+		return // No remotes configured
+	}
+
+	var rf struct {
+		Remotes []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+			URL  string `json:"url"`
+		} `json:"remotes"`
+	}
+
+	if err := json.Unmarshal(data, &rf); err != nil {
+		return
+	}
+
+	for _, remote := range rf.Remotes {
+		var store BlobStore
+		switch remote.Type {
+		case "http":
+			store = &HTTPBlobStore{BaseURL: remote.URL}
+		case "s3":
+			s, err := NewS3BlobStore(remote.URL, "")
+			if err != nil {
+				continue
+			}
+			store = s
+		case "peer":
+			store = &PeerToPeerBlobStore{Peers: strings.Split(remote.URL, ",")}
+		case "local":
+			store = &LocalBlobStore{Dir: remote.URL}
+		default:
+			continue
+		}
+
+		// Push new blobs to this remote
+		local := &LocalBlobStore{Dir: filepath.Join(r.Path, ".steria", "objects", "blobs")}
+		blobs, err := local.ListBlobs()
+		if err != nil {
+			continue
+		}
+
+		for _, blob := range blobs {
+			if !store.HasBlob(blob) {
+				data, err := local.GetBlob(blob)
+				if err != nil {
+					continue
+				}
+				store.PutBlob(blob, data) // Ignore errors for auto-sync
+			}
+		}
+	}
 }
 
 // HasRemote returns true if the repository has a remote configured
@@ -651,6 +717,225 @@ type BlobStore interface {
 	GetBlob(hash string) ([]byte, error)
 	HasBlob(hash string) bool
 	ListBlobs() ([]string, error)
+}
+
+// HTTPBlobStore implements BlobStore for HTTP(S) remote storage
+// Expects a REST API with endpoints: /blobs/{hash}.gz (GET, PUT, HEAD), /blobs (GET for list)
+type HTTPBlobStore struct {
+	BaseURL string // e.g. https://my-steria-remote.com
+}
+
+func (h *HTTPBlobStore) PutBlob(hash string, data []byte) error {
+	url := h.BaseURL + "/blobs/" + hash + ".gz"
+	req, err := http.NewRequest("PUT", url, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return fmt.Errorf("HTTP PUT failed: %s", resp.Status)
+	}
+	return nil
+}
+
+func (h *HTTPBlobStore) GetBlob(hash string) ([]byte, error) {
+	url := h.BaseURL + "/blobs/" + hash + ".gz"
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP GET failed: %s", resp.Status)
+	}
+	return ioutil.ReadAll(resp.Body)
+}
+
+func (h *HTTPBlobStore) HasBlob(hash string) bool {
+	url := h.BaseURL + "/blobs/" + hash + ".gz"
+	req, _ := http.NewRequest("HEAD", url, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == 200
+}
+
+func (h *HTTPBlobStore) ListBlobs() ([]string, error) {
+	url := h.BaseURL + "/blobs"
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP GET failed: %s", resp.Status)
+	}
+	var blobs []string
+	if err := json.NewDecoder(resp.Body).Decode(&blobs); err != nil {
+		return nil, err
+	}
+	return blobs, nil
+}
+
+// S3BlobStore implements BlobStore for Amazon S3 (or compatible) storage
+// Stores blobs as {prefix}/{hash}.gz in the bucket
+type S3BlobStore struct {
+	Bucket string
+	Prefix string
+	Client *s3.Client
+}
+
+func NewS3BlobStore(bucket, prefix string) (*S3BlobStore, error) {
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	client := s3.NewFromConfig(cfg)
+	return &S3BlobStore{Bucket: bucket, Prefix: prefix, Client: client}, nil
+}
+
+func (s *S3BlobStore) PutBlob(hash string, data []byte) error {
+	key := s.Prefix + hash + ".gz"
+	_, err := s.Client.PutObject(context.Background(), &s3.PutObjectInput{
+		Bucket: &s.Bucket,
+		Key:    &key,
+		Body:   bytes.NewReader(data),
+	})
+	return err
+}
+
+func (s *S3BlobStore) GetBlob(hash string) ([]byte, error) {
+	key := s.Prefix + hash + ".gz"
+	resp, err := s.Client.GetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: &s.Bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return ioutil.ReadAll(resp.Body)
+}
+
+func (s *S3BlobStore) HasBlob(hash string) bool {
+	key := s.Prefix + hash + ".gz"
+	_, err := s.Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		Bucket: &s.Bucket,
+		Key:    &key,
+	})
+	return err == nil
+}
+
+func (s *S3BlobStore) ListBlobs() ([]string, error) {
+	var blobs []string
+	prefix := s.Prefix
+	paginator := s3.NewListObjectsV2Paginator(s.Client, &s3.ListObjectsV2Input{
+		Bucket: &s.Bucket,
+		Prefix: &prefix,
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range page.Contents {
+			name := strings.TrimPrefix(*obj.Key, prefix)
+			if strings.HasSuffix(name, ".gz") {
+				blobs = append(blobs, strings.TrimSuffix(name, ".gz"))
+			}
+		}
+	}
+	return blobs, nil
+}
+
+// PeerToPeerBlobStore implements BlobStore for peer-to-peer HTTP sync
+// Peers is a list of Steria node base URLs (e.g., http://peer1:8080)
+type PeerToPeerBlobStore struct {
+	Peers []string
+}
+
+func (p *PeerToPeerBlobStore) PutBlob(hash string, data []byte) error {
+	var lastErr error
+	for _, peer := range p.Peers {
+		url := peer + "/blobs/" + hash + ".gz"
+		req, err := http.NewRequest("PUT", url, bytes.NewReader(data))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 && resp.StatusCode != 201 {
+			lastErr = fmt.Errorf("HTTP PUT failed: %s", resp.Status)
+			continue
+		}
+		lastErr = nil
+	}
+	return lastErr
+}
+
+func (p *PeerToPeerBlobStore) GetBlob(hash string) ([]byte, error) {
+	for _, peer := range p.Peers {
+		url := peer + "/blobs/" + hash + ".gz"
+		resp, err := http.Get(url)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == 200 {
+			return ioutil.ReadAll(resp.Body)
+		}
+	}
+	return nil, fmt.Errorf("blob %s not found on any peer", hash)
+}
+
+func (p *PeerToPeerBlobStore) HasBlob(hash string) bool {
+	for _, peer := range p.Peers {
+		url := peer + "/blobs/" + hash + ".gz"
+		req, _ := http.NewRequest("HEAD", url, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil && resp.StatusCode == 200 {
+			resp.Body.Close()
+			return true
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+	}
+	return false
+}
+
+func (p *PeerToPeerBlobStore) ListBlobs() ([]string, error) {
+	blobSet := map[string]struct{}{}
+	for _, peer := range p.Peers {
+		url := peer + "/blobs"
+		resp, err := http.Get(url)
+		if err != nil || resp.StatusCode != 200 {
+			continue
+		}
+		var blobs []string
+		if err := json.NewDecoder(resp.Body).Decode(&blobs); err == nil {
+			for _, b := range blobs {
+				blobSet[b] = struct{}{}
+			}
+		}
+		resp.Body.Close()
+	}
+	var merged []string
+	for b := range blobSet {
+		merged = append(merged, b)
+	}
+	return merged, nil
 }
 
 type LocalBlobStore struct {
