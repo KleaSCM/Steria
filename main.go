@@ -48,6 +48,8 @@ func main() {
 	rootCmd.AddCommand(repository.NewPullCmd())
 	rootCmd.AddCommand(repository.NewTagCmd())
 	rootCmd.AddCommand(repository.NewCherryPickCmd())
+	rootCmd.AddCommand(repository.NewStashCmd())
+	rootCmd.AddCommand(repository.NewBlameCmd())
 
 	rootCmd.AddCommand(workflow.NewCommitCmd())
 	rootCmd.AddCommand(workflow.NewDoneCmd())

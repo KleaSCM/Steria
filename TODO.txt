@@ -82,12 +82,12 @@
 - [x] Performance Optimization (optimize large repository operations)
 
 ## Advanced Version Control
-- [ ] Tag system for releases
-- [ ] Cherry-pick functionality
+- [x] Tag system for releases
+- [x] Cherry-pick functionality
 - [ ] Interactive rebase
-- [ ] Stash management
+- [x] Stash management
 - [ ] Conflict resolution tools
-- [ ] Blame/history for specific lines
+- [x] Blame/history for specific lines
 
 ## Collaboration Features
 - [ ] Multi-user repository support
