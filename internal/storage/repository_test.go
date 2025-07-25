@@ -7,6 +7,8 @@ import (
 
 func TestLoadOrInitRepo_New(t *testing.T) {
 	dir := t.TempDir()
+	// Create a user file so getAllFiles finds something
+	os.WriteFile(dir+"/file.txt", []byte("test"), 0644)
 	repo, err := LoadOrInitRepo(dir)
 	if err != nil {
 		t.Fatalf("Failed to init new repo: %v", err)
@@ -18,6 +20,8 @@ func TestLoadOrInitRepo_New(t *testing.T) {
 
 func TestLoadOrInitRepo_Existing(t *testing.T) {
 	dir := t.TempDir()
+	// Create a user file so getAllFiles finds something
+	os.WriteFile(dir+"/file.txt", []byte("test"), 0644)
 	repo, err := LoadOrInitRepo(dir)
 	if err != nil {
 		t.Fatalf("Failed to init repo: %v", err)
@@ -33,9 +37,11 @@ func TestLoadOrInitRepo_Existing(t *testing.T) {
 
 func TestCreateCommitAndGetChanges(t *testing.T) {
 	dir := t.TempDir()
+	// Create a user file so getAllFiles finds something
+	os.WriteFile(dir+"/file.txt", []byte("test"), 0644)
 	repo, _ := LoadOrInitRepo(dir)
-	f := dir + "/file.txt"
-	os.WriteFile(f, []byte("test"), 0644)
+	f := dir + "/file2.txt"
+	os.WriteFile(f, []byte("test2"), 0644)
 	changes, err := repo.GetChanges()
 	if err != nil {
 		t.Fatalf("GetChanges failed: %v", err)
@@ -51,6 +57,8 @@ func TestCreateCommitAndGetChanges(t *testing.T) {
 
 func TestHasRemote(t *testing.T) {
 	dir := t.TempDir()
+	// Create a user file so getAllFiles finds something
+	os.WriteFile(dir+"/file.txt", []byte("test"), 0644)
 	repo, _ := LoadOrInitRepo(dir)
 	if repo.HasRemote() {
 		t.Errorf("Expected no remote")
@@ -63,6 +71,8 @@ func TestHasRemote(t *testing.T) {
 
 func TestSync_NoRemote(t *testing.T) {
 	dir := t.TempDir()
+	// Create a user file so getAllFiles finds something
+	os.WriteFile(dir+"/file.txt", []byte("test"), 0644)
 	repo, _ := LoadOrInitRepo(dir)
 	err := repo.Sync()
 	if err == nil {
@@ -72,9 +82,11 @@ func TestSync_NoRemote(t *testing.T) {
 
 func TestLoadCommit(t *testing.T) {
 	dir := t.TempDir()
+	// Create a user file so getAllFiles finds something
+	os.WriteFile(dir+"/file.txt", []byte("test"), 0644)
 	repo, _ := LoadOrInitRepo(dir)
-	f := dir + "/file.txt"
-	os.WriteFile(f, []byte("test"), 0644)
+	f := dir + "/file2.txt"
+	os.WriteFile(f, []byte("test2"), 0644)
 	c, _ := repo.CreateCommit("msg", "author")
 	commit, err := repo.LoadCommit(c.Hash)
 	if err != nil {
@@ -87,9 +99,11 @@ func TestLoadCommit(t *testing.T) {
 
 func TestGetCurrentStateAndWorkingState(t *testing.T) {
 	dir := t.TempDir()
+	// Create a user file so getAllFiles finds something
+	os.WriteFile(dir+"/file.txt", []byte("test"), 0644)
 	repo, _ := LoadOrInitRepo(dir)
-	f := dir + "/file.txt"
-	os.WriteFile(f, []byte("test"), 0644)
+	f := dir + "/file2.txt"
+	os.WriteFile(f, []byte("test2"), 0644)
 	repo.CreateCommit("msg", "author")
 	state, err := repo.getCurrentState()
 	if err != nil {
@@ -109,9 +123,11 @@ func TestGetCurrentStateAndWorkingState(t *testing.T) {
 
 func TestCalculateFileHash(t *testing.T) {
 	dir := t.TempDir()
+	// Create a user file so getAllFiles finds something
+	os.WriteFile(dir+"/file.txt", []byte("test"), 0644)
 	repo, _ := LoadOrInitRepo(dir)
-	f := dir + "/file.txt"
-	os.WriteFile(f, []byte("test"), 0644)
+	f := dir + "/file2.txt"
+	os.WriteFile(f, []byte("test2"), 0644)
 	hash, err := repo.calculateFileHash(f)
 	if err != nil {
 		t.Fatalf("calculateFileHash failed: %v", err)

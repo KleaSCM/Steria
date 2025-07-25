@@ -51,6 +51,8 @@ func main() {
 	rootCmd.AddCommand(repository.NewStashCmd())
 	rootCmd.AddCommand(repository.NewBlameCmd())
 	rootCmd.AddCommand(repository.NewRebaseCmd())
+	rootCmd.AddCommand(repository.NewConflictsCmd())
+	rootCmd.AddCommand(repository.NewResolveCmd())
 
 	rootCmd.AddCommand(workflow.NewCommitCmd())
 	rootCmd.AddCommand(workflow.NewDoneCmd())

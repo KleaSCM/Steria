@@ -319,22 +319,44 @@ func (or *OptimizedRepo) CreateCommitOptimized(message, author string) (*Commit,
 		return nil, fmt.Errorf("failed to get changes: %w", err)
 	}
 
-	// Create commit object
 	commit := &Commit{
 		Message:   message,
 		Author:    author,
 		Timestamp: time.Now(),
 		Parent:    or.Head,
+		FileBlobs: make(map[string]string),
 	}
 
-	// Add files to commit
 	for _, change := range changes {
 		if change.Type != ChangeTypeDeleted {
 			commit.Files = append(commit.Files, change.Path)
+			// Calculate hash and write blob
+			hash, err := or.cache.GetHash(filepath.Join(or.Path, change.Path))
+			if err != nil {
+				return nil, fmt.Errorf("failed to hash file %s: %w", change.Path, err)
+			}
+			blobDir := filepath.Join(or.Path, ".steria", "objects", "blobs")
+			if err := os.MkdirAll(blobDir, 0755); err != nil {
+				return nil, fmt.Errorf("failed to create blob dir: %w", err)
+			}
+			store := &LocalBlobStore{Dir: blobDir}
+			if err := writeBlobCompressed(store, hash, filepath.Join(or.Path, change.Path)); err != nil {
+				return nil, fmt.Errorf("failed to write compressed blob for %s: %w", change.Path, err)
+			}
+			commit.FileBlobs[change.Path] = hash
 		}
 	}
+	fmt.Printf("[DEBUG] FileBlobs length: %d, keys: %v\n", len(commit.FileBlobs), func() []string {
+		var k []string
+		for key := range commit.FileBlobs {
+			k = append(k, key)
+		}
+		return k
+	}())
+	if len(commit.FileBlobs) == 0 {
+		panic("[FATAL] FileBlobs is empty after populating! This is a critical bug.")
+	}
 
-	// Generate commit hash
 	commitData, err := json.Marshal(commit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal commit: %w", err)
@@ -343,12 +365,10 @@ func (or *OptimizedRepo) CreateCommitOptimized(message, author string) (*Commit,
 	hash := sha256.Sum256(commitData)
 	commit.Hash = hex.EncodeToString(hash[:])
 
-	// Save commit object with concurrent write
 	if err := or.saveCommitOptimized(commit); err != nil {
 		return nil, fmt.Errorf("failed to save commit: %w", err)
 	}
 
-	// Update HEAD atomically
 	or.mu.Lock()
 	or.Head = commit.Hash
 	or.mu.Unlock()
@@ -367,14 +387,18 @@ func (or *OptimizedRepo) saveCommitOptimized(commit *Commit) error {
 	if err != nil {
 		return err
 	}
-
 	commitPath := filepath.Join(or.Path, ".steria", "objects", commit.Hash[:2], commit.Hash[2:])
 	if err := os.MkdirAll(filepath.Dir(commitPath), 0755); err != nil {
 		return err
 	}
-
 	// Use atomic write for better performance
-	return atomicWrite(commitPath, data)
+	if err := atomicWrite(commitPath, data); err != nil {
+		return err
+	}
+	fmt.Printf("[DEBUG] saveCommitOptimized: %+v\n", commit)
+	written, _ := os.ReadFile(commitPath)
+	fmt.Printf("[DEBUG] Written commit file: %s\n", string(written))
+	return nil
 }
 
 // atomicWrite writes data atomically

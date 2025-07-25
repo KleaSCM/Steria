@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"steria/internal/storage"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -25,44 +25,86 @@ func NewSwitchBranchCmd() *cobra.Command {
 	return cmd
 }
 
-func runSwitchBranch(name string) error {
-	green := color.New(color.FgGreen).SprintFunc()
-	cyan := color.New(color.FgCyan).SprintFunc()
-	red := color.New(color.FgRed).SprintFunc()
-
+func runSwitchBranch(branch string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
+	repoRoot := findRepoRoot(cwd)
+	if repoRoot == "" {
+		return fmt.Errorf("not inside a Steria repository")
+	}
 
-	repo, err := storage.LoadOrInitRepo(cwd)
+	branchesDir := filepath.Join(repoRoot, ".steria", "branches")
+	branchPath := filepath.Join(branchesDir, branch)
+	// Always allow switching to 'Stem' if it exists (default branch)
+	if branch == "Stem" {
+		if _, err := os.Stat(branchPath); err == nil {
+			return doSwitchBranch(repoRoot, branch, branchPath)
+		}
+		return fmt.Errorf("default branch 'Stem' does not exist")
+	}
+
+	if _, err := os.Stat(branchPath); err != nil {
+		return fmt.Errorf("branch '%s' does not exist", branch)
+	}
+	return doSwitchBranch(repoRoot, branch, branchPath)
+}
+
+func doSwitchBranch(repoRoot, branch, branchPath string) error {
+	head, err := os.ReadFile(branchPath)
 	if err != nil {
-		return fmt.Errorf("failed to load repository: %w", err)
+		return fmt.Errorf("failed to read branch ref: %w", err)
 	}
-
-	branchFile := filepath.Join(cwd, ".steria", "branches", name)
-
-	// Check if branch exists
-	if _, err := os.Stat(branchFile); os.IsNotExist(err) {
-		return fmt.Errorf("branch '%s' does not exist", red(name))
-	}
-
-	// Read the branch's HEAD
-	branchHead, err := os.ReadFile(branchFile)
-	if err != nil {
-		return fmt.Errorf("failed to read branch HEAD: %w", err)
-	}
-
-	// Switch branch: update .steria/branch and .steria/HEAD
-	if err := os.WriteFile(filepath.Join(cwd, ".steria", "branch"), []byte(name), 0644); err != nil {
-		return fmt.Errorf("failed to switch branch: %w", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(cwd, ".steria", "HEAD"), branchHead, 0644); err != nil {
+	// Update HEAD and branch
+	headPath := filepath.Join(repoRoot, ".steria", "HEAD")
+	branchFile := filepath.Join(repoRoot, ".steria", "branch")
+	if err := os.WriteFile(headPath, head, 0644); err != nil {
 		return fmt.Errorf("failed to update HEAD: %w", err)
 	}
+	if err := os.WriteFile(branchFile, []byte(branch), 0644); err != nil {
+		return fmt.Errorf("failed to update branch: %w", err)
+	}
 
-	repo.Branch = name
-	fmt.Printf("%s Switched to branch: %s\n", green("✅"), cyan(name))
+	// Restore working directory to match HEAD commit of the target branch
+	repo, err := storage.LoadOrInitRepo(repoRoot)
+	if err != nil {
+		return fmt.Errorf("failed to load repo for restore: %w", err)
+	}
+	commit, err := repo.LoadCommit(strings.TrimSpace(string(head)))
+	if err != nil {
+		return fmt.Errorf("failed to load HEAD commit for restore: %w", err)
+	}
+	blobDir := filepath.Join(repoRoot, ".steria", "objects", "blobs")
+	store := &storage.LocalBlobStore{Dir: blobDir}
+	for _, file := range commit.Files {
+		blob := commit.FileBlobs[file]
+		if blob == "" {
+			continue
+		}
+		data, err := storage.ReadFileBlobDecompressed(store, blob)
+		if err != nil {
+			continue
+		}
+		os.MkdirAll(filepath.Dir(filepath.Join(repoRoot, file)), 0755)
+		os.WriteFile(filepath.Join(repoRoot, file), data, 0644)
+	}
+
+	fmt.Printf("\nSwitched to branch '%s'\n\n", branch)
 	return nil
+}
+
+// findRepoRoot walks up from cwd to find the Steria repo root
+func findRepoRoot(start string) string {
+	dir := start
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".steria")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }

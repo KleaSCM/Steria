@@ -26,10 +26,19 @@ func TestBlobCompressionAndDecompression(t *testing.T) {
 	ioutil.WriteFile(file, content, 0644)
 	hash := "testhash"
 	store := &LocalBlobStore{Dir: blobDir}
-	if err := writeBlobCompressed(store, hash, file); err != nil {
+	if err := WriteBlobCompressed(store, hash, file); err != nil {
 		t.Fatalf("Failed to write compressed blob: %v", err)
 	}
-	data, err := ReadBlobDecompressed(store, hash)
+	// Print files in blobDir
+	files, _ := ioutil.ReadDir(blobDir)
+	for _, f := range files {
+		t.Logf("blobDir file: %s", f.Name())
+		if f.Name() == hash+".gz" {
+			data, _ := os.ReadFile(filepath.Join(blobDir, f.Name()))
+			t.Logf("blob file contents (hex): %x", data)
+		}
+	}
+	data, err := ReadBlobDecompressedExported(store, hash)
 	if err != nil {
 		t.Fatalf("Failed to read compressed blob: %v", err)
 	}
@@ -53,11 +62,11 @@ func TestDeltaEncodingAndReconstruction(t *testing.T) {
 	baseFile := filepath.Join(blobDir, baseHash)
 	ioutil.WriteFile(baseFile, base, 0644)
 	patchPath := filepath.Join(blobDir, patchHash)
-	if err := writeDeltaPatch(base, newv, patchPath); err != nil {
+	if err := WriteDeltaPatch(base, newv, patchPath); err != nil {
 		t.Fatalf("Failed to write delta patch: %v", err)
 	}
 	patchData, _ := os.ReadFile(patchPath)
-	reconstructed, err := applyDeltaPatch(base, patchData)
+	reconstructed, err := ApplyDeltaPatch(base, patchData)
 	if err != nil {
 		t.Fatalf("Failed to apply delta patch: %v", err)
 	}
@@ -83,13 +92,13 @@ func TestReadFileBlobDecompressed(t *testing.T) {
 	newv := []byte("A\nB changed\nC\n")
 	patchHash := "patchhash"
 	patchPath := filepath.Join(blobDir, patchHash)
-	if err := writeDeltaPatch(base, newv, patchPath); err != nil {
+	if err := WriteDeltaPatch(base, newv, patchPath); err != nil {
 		t.Fatalf("Failed to write delta patch: %v", err)
 	}
 	// Read reconstructed
 	blobRef := "delta:" + baseHash + ":" + patchHash
 	store := &LocalBlobStore{Dir: blobDir}
-	data, err := ReadFileBlobDecompressed(store, blobRef)
+	data, err := ReadFileBlobDecompressedExported(store, blobRef)
 	if err != nil {
 		t.Fatalf("Failed to read delta blob: %v", err)
 	}

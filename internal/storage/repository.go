@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"steria/internal/metrics"
 	"steria/internal/utils"
 
 	"sync"
@@ -28,6 +27,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
+
+// Author: KleaSCM
+// Email: KleaSCM@gmail.com
+// Name of the file: repository.go
+// Description: Core repository logic for Steria, now including conflict tracking helpers for merge/rebase workflows.
 
 // Repo represents a Steria repository
 type Repo struct {
@@ -72,6 +76,27 @@ const (
 	ChangeTypeModified ChangeType = "modified"
 	ChangeTypeDeleted  ChangeType = "deleted"
 )
+
+// Conflict represents a file-level or line-level merge conflict
+// Each conflict entry tracks the file, status, and optional details for UI/CLI
+// Status: "unresolved", "resolved"
+type Conflict struct {
+	File     string `json:"file"`               // Path to the conflicted file (relative to repo root)
+	Type     string `json:"type"`               // "file" or "line"
+	Lines    []int  `json:"lines,omitempty"`    // Line numbers with conflicts (for line-level)
+	Status   string `json:"status"`             // "unresolved" or "resolved"
+	Detected string `json:"detected"`           // Timestamp or commit hash when detected
+	Resolved string `json:"resolved,omitempty"` // Timestamp when resolved
+	Resolver string `json:"resolver,omitempty"` // Who resolved it
+	Details  string `json:"details,omitempty"`  // Optional: reason, notes, etc.
+}
+
+// ConflictsFile is the structure stored in .steria/conflicts.json
+// It contains all current and past conflicts for the repo
+// Only unresolved conflicts are shown by default in CLI
+type ConflictsFile struct {
+	Conflicts []Conflict `json:"conflicts"`
+}
 
 // LoadOrInitRepo loads an existing repository or initializes a new one
 func LoadOrInitRepo(path string) (*Repo, error) {
@@ -172,8 +197,9 @@ func initRepo(path string) (*Repo, error) {
 	}
 
 	// Set initial branch
+	// it's Stem because that's what Yuriko wants!
 	branchPath := filepath.Join(steriaPath, "branch")
-	if err := os.WriteFile(branchPath, []byte("main"), 0644); err != nil {
+	if err := os.WriteFile(branchPath, []byte("Stem"), 0644); err != nil {
 		return nil, fmt.Errorf("failed to write branch: %w", err)
 	}
 
@@ -181,7 +207,7 @@ func initRepo(path string) (*Repo, error) {
 	repo := &Repo{
 		Path:      path,
 		Config:    config,
-		Branch:    "main",
+		Branch:    "Stem", // it's Stem because I wants!
 		RemoteURL: "",
 		BlobStore: &LocalBlobStore{Dir: filepath.Join(path, ".steria", "objects", "blobs")},
 	}
@@ -190,23 +216,66 @@ func initRepo(path string) (*Repo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create initial commit: %w", err)
 	}
-
 	repo.Head = initialCommit.Hash
+	fmt.Printf("[DEBUG] After initial commit: %+v\n", initialCommit)
 
-	// --- Steria enhancement: Immediately add all files (except ignored) in the first commit ---
-	// Check for untracked files and commit them right away
-	changes, err := repo.GetChanges()
-	if err != nil {
-		return nil, fmt.Errorf("failed to check for untracked files: %w", err)
+	// Ensure initial commit tracks all files and populates FileBlobs
+	if initialCommit.FileBlobs == nil || len(initialCommit.FileBlobs) == 0 {
+		allFiles := getAllFiles(path)
+		for _, file := range allFiles {
+			if strings.HasPrefix(file, filepath.Join(path, ".steria")) {
+				continue // skip internal files
+			}
+			rel, _ := filepath.Rel(path, file)
+			hash, err := repo.calculateFileHash(file)
+			if err == nil {
+				if initialCommit.FileBlobs == nil {
+					initialCommit.FileBlobs = make(map[string]string)
+				}
+				initialCommit.FileBlobs[rel] = hash
+				initialCommit.Files = append(initialCommit.Files, rel)
+			}
+		}
+		// Recalculate commit hash and save under new hash
+		commitData, _ := json.Marshal(initialCommit)
+		hash := sha256.Sum256(commitData)
+		initialCommit.Hash = hex.EncodeToString(hash[:])
+		repo.saveCommit(initialCommit)
+		// Reload the commit object from disk and update all pointers
+		newCommit, _ := repo.LoadCommit(initialCommit.Hash)
+		repo.Head = newCommit.Hash
+		headPath := filepath.Join(path, ".steria", "HEAD")
+		os.WriteFile(headPath, []byte(newCommit.Hash), 0644)
+		branchRefPath := filepath.Join(path, ".steria", "branches", "Stem")
+		os.WriteFile(branchRefPath, []byte(newCommit.Hash), 0644)
 	}
-	if len(changes) > 0 {
-		commit, err := repo.CreateCommit("Add all files on repo initialization", "KleaSCM")
+
+	// Always create .steria/branches/Stem pointing to HEAD
+	branchesDir := filepath.Join(steriaPath, "branches")
+	if err := os.MkdirAll(branchesDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create branches dir: %w", err)
+	}
+	StemBranchPath := filepath.Join(branchesDir, "Stem")
+	if err := os.WriteFile(StemBranchPath, []byte(initialCommit.Hash), 0644); err != nil {
+		return nil, fmt.Errorf("failed to create Stem branch ref: %w", err)
+	}
+
+	// In initRepo, after the initial commit, always force a new commit that tracks all files in the working directory
+	allFiles := getAllFiles(path)
+	userFiles := 0
+	for _, file := range allFiles {
+		if !strings.HasPrefix(file, filepath.Join(path, ".steria")) {
+			userFiles++
+		}
+	}
+	if userFiles > 0 {
+		commit, err := repo.CreateCommit("Track all user files after init", "KleaSCM")
 		if err != nil {
-			return nil, fmt.Errorf("failed to add all files on initialization: %w", err)
+			return nil, fmt.Errorf("failed to track all user files after init: %w", err)
 		}
 		repo.Head = commit.Hash
+		fmt.Printf("[DEBUG] After forced user file commit: %+v\n", commit)
 	}
-	// --- End enhancement ---
 
 	return repo, nil
 }
@@ -262,11 +331,7 @@ func (r *Repo) GetChanges() ([]FileChange, error) {
 
 // CreateCommit creates a new commit
 func (r *Repo) CreateCommit(message, author string) (*Commit, error) {
-	changes, err := r.GetChanges()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get changes: %w", err)
-	}
-
+	fmt.Printf("[DEBUG] CreateCommit called: message=%q, author=%q, parent=%q\n", message, author, r.Head)
 	commit := &Commit{
 		Message:   message,
 		Author:    author,
@@ -275,68 +340,48 @@ func (r *Repo) CreateCommit(message, author string) (*Commit, error) {
 		FileBlobs: make(map[string]string),
 	}
 
-	var totalBytes int64
-	for _, change := range changes {
-		if change.Type != ChangeTypeDeleted {
-			commit.Files = append(commit.Files, change.Path)
-			filePath := filepath.Join(r.Path, change.Path)
-			info, err := os.Stat(filePath)
-			if err == nil {
-				totalBytes += info.Size()
-			}
-			blobDir := filepath.Join(r.Path, ".steria", "objects", "blobs")
-			if err := os.MkdirAll(blobDir, 0755); err != nil {
-				return nil, fmt.Errorf("failed to create blob dir: %w", err)
-			}
-			var prevHash string
-			if r.Head != "" {
-				parentCommit, err := r.LoadCommit(r.Head)
-				if err == nil {
-					prevHash = parentCommit.FileBlobs[change.Path]
-				}
-			}
-			if info.Size() > 1024*1024 && prevHash != "" { // >1MB and previous version exists
-				// Delta encoding
-				baseData, err := ReadBlobDecompressed(r.BlobStore, prevHash)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read base blob for delta: %w", err)
-				}
-				newData, err := os.ReadFile(filePath)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read new file for delta: %w", err)
-				}
-				deltaHash := change.Hash + "_delta"
-				patchPath := filepath.Join(blobDir, deltaHash)
-				if err := writeDeltaPatch(baseData, newData, patchPath); err != nil {
-					return nil, fmt.Errorf("failed to write delta patch: %w", err)
-				}
-				commit.FileBlobs[change.Path] = "delta:" + prevHash + ":" + deltaHash
-			} else {
-				// Full blob (compressed)
-				hash, err := r.calculateFileHash(filePath)
-				if err != nil {
-					return nil, fmt.Errorf("failed to hash file %s: %w", change.Path, err)
-				}
-				if err := writeBlobCompressed(r.BlobStore, hash, filePath); err != nil {
-					return nil, fmt.Errorf("failed to write compressed blob for %s: %w", change.Path, err)
-				}
-				commit.FileBlobs[change.Path] = hash
-			}
-		}
+	allFiles := getAllFiles(r.Path)
+	if len(allFiles) == 0 {
+		panic("[FATAL] getAllFiles returned no files! This is a critical bug.")
 	}
-
-	metrics.GlobalMetrics.IncrementFilesProcessed(int64(len(commit.Files)))
-	metrics.GlobalMetrics.IncrementBytesProcessed(totalBytes)
-	metrics.GlobalMetrics.IncrementCommitsCreated()
-
+	fmt.Printf("[DEBUG] getAllFiles: %v\n", allFiles)
+	for _, file := range allFiles {
+		if strings.HasPrefix(file, filepath.Join(r.Path, ".steria")) {
+			continue // skip internal files
+		}
+		rel, _ := filepath.Rel(r.Path, file)
+		hash, err := r.calculateFileHash(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash file %s: %w", file, err)
+		}
+		blobDir := filepath.Join(r.Path, ".steria", "objects", "blobs")
+		if err := os.MkdirAll(blobDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create blob dir: %w", err)
+		}
+		if err := WriteBlobCompressed(r.BlobStore, hash, file); err != nil {
+			return nil, fmt.Errorf("failed to write compressed blob for %s: %w", file, err)
+		}
+		commit.FileBlobs[rel] = hash
+		commit.Files = append(commit.Files, rel)
+		fmt.Printf("[DEBUG] Adding file to commit: %s -> %s\n", rel, hash)
+	}
+	fmt.Printf("[DEBUG] FileBlobs length: %d, keys: %v\n", len(commit.FileBlobs), func() []string {
+		var k []string
+		for key := range commit.FileBlobs {
+			k = append(k, key)
+		}
+		return k
+	}())
+	if len(commit.FileBlobs) == 0 {
+		panic("[FATAL] FileBlobs is empty after populating! This is a critical bug.")
+	}
+	// Always set commit.Hash before saving
 	commitData, err := json.Marshal(commit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal commit: %w", err)
 	}
-
 	hash := sha256.Sum256(commitData)
 	commit.Hash = hex.EncodeToString(hash[:])
-
 	if err := r.saveCommit(commit); err != nil {
 		return nil, fmt.Errorf("failed to save commit: %w", err)
 	}
@@ -347,7 +392,15 @@ func (r *Repo) CreateCommit(message, author string) (*Commit, error) {
 		return nil, fmt.Errorf("failed to update HEAD: %w", err)
 	}
 
-	// Auto-sync to remotes after successful commit
+	branchFile := filepath.Join(r.Path, ".steria", "branch")
+	branchNameBytes, err := os.ReadFile(branchFile)
+	branchName := "Stem"
+	if err == nil {
+		branchName = strings.TrimSpace(string(branchNameBytes))
+	}
+	branchRefPath := filepath.Join(r.Path, ".steria", "branches", branchName)
+	os.WriteFile(branchRefPath, []byte(commit.Hash), 0644)
+
 	go r.autoSyncToRemotes()
 
 	return commit, nil
@@ -517,17 +570,24 @@ func (r *Repo) calculateFileHash(path string) (string, error) {
 
 // saveCommit saves a commit object
 func (r *Repo) saveCommit(commit *Commit) error {
+	if len(commit.Hash) < 2 {
+		return fmt.Errorf("commit hash too short: %q", commit.Hash)
+	}
 	data, err := json.MarshalIndent(commit, "", "  ")
 	if err != nil {
 		return err
 	}
-
 	commitPath := filepath.Join(r.Path, ".steria", "objects", commit.Hash[:2], commit.Hash[2:])
 	if err := os.MkdirAll(filepath.Dir(commitPath), 0755); err != nil {
 		return err
 	}
-
-	return os.WriteFile(commitPath, data, 0644)
+	if err := os.WriteFile(commitPath, data, 0644); err != nil {
+		return err
+	}
+	fmt.Printf("[DEBUG] saveCommit: %+v\n", commit)
+	written, _ := os.ReadFile(commitPath)
+	fmt.Printf("[DEBUG] Written commit file: %s\n", string(written))
+	return nil
 }
 
 // loadCommit loads a commit object
@@ -571,15 +631,20 @@ func ReadBlobDecompressed(blobStore BlobStore, hash string) ([]byte, error) {
 	// Try .gz first
 	gzPath := hash + ".gz"
 	if data, err := blobStore.GetBlob(gzPath); err == nil {
+		fmt.Printf("[DEBUG] ReadBlobDecompressed: reading gzipped blob %s\n", gzPath)
 		gr, err := gzip.NewReader(bytes.NewReader(data))
 		if err != nil {
+			fmt.Printf("[DEBUG] ReadBlobDecompressed: gzip.NewReader error: %v\n", err)
 			return nil, err
 		}
 		defer gr.Close()
-		return ioutil.ReadAll(gr)
+		out, err := ioutil.ReadAll(gr)
+		fmt.Printf("[DEBUG] ReadBlobDecompressed: decompressed data: %q\n", out)
+		return out, err
 	}
 	// Fallback to plain
 	plainPath := hash
+	fmt.Printf("[DEBUG] ReadBlobDecompressed: reading plain blob %s\n", plainPath)
 	return blobStore.GetBlob(plainPath)
 }
 
@@ -952,8 +1017,18 @@ func (l *LocalBlobStore) PutBlob(hash string, data []byte) error {
 }
 
 func (l *LocalBlobStore) GetBlob(hash string) ([]byte, error) {
-	path := filepath.Join(l.Dir, hash+".gz")
-	return os.ReadFile(path)
+	// If hash ends with .gz, use as is; otherwise, try with .gz
+	path := filepath.Join(l.Dir, hash)
+	if _, err := os.Stat(path); err == nil {
+		return os.ReadFile(path)
+	}
+	if !strings.HasSuffix(hash, ".gz") {
+		gzPath := filepath.Join(l.Dir, hash+".gz")
+		if _, err := os.Stat(gzPath); err == nil {
+			return os.ReadFile(gzPath)
+		}
+	}
+	return nil, os.ErrNotExist
 }
 
 func (l *LocalBlobStore) HasBlob(hash string) bool {
@@ -974,6 +1049,106 @@ func (l *LocalBlobStore) ListBlobs() ([]string, error) {
 		}
 	}
 	return blobs, nil
+}
+
+// Exported wrappers for test use
+func WriteBlobCompressed(blobStore BlobStore, hash, filePath string) error {
+	return writeBlobCompressed(blobStore, hash, filePath)
+}
+
+func ReadBlobDecompressedExported(blobStore BlobStore, hash string) ([]byte, error) {
+	return ReadBlobDecompressed(blobStore, hash)
+}
+
+func WriteDeltaPatch(baseData, newData []byte, patchPath string) error {
+	return writeDeltaPatch(baseData, newData, patchPath)
+}
+
+func ApplyDeltaPatch(baseData []byte, patchData []byte) ([]byte, error) {
+	return applyDeltaPatch(baseData, patchData)
+}
+
+func ReadFileBlobDecompressedExported(blobStore BlobStore, blobRef string) ([]byte, error) {
+	return ReadFileBlobDecompressed(blobStore, blobRef)
+}
+
+// LoadConflicts loads the conflicts.json file from the repo
+func LoadConflicts(repoPath string) (*ConflictsFile, error) {
+	path := filepath.Join(repoPath, ".steria", "conflicts.json")
+	var cf ConflictsFile
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &ConflictsFile{}, nil // No conflicts yet
+		}
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &cf); err != nil {
+		return nil, err
+	}
+	return &cf, nil
+}
+
+// SaveConflicts writes the conflicts.json file to the repo
+func SaveConflicts(repoPath string, cf *ConflictsFile) error {
+	path := filepath.Join(repoPath, ".steria", "conflicts.json")
+	data, err := json.MarshalIndent(cf, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// AddConflict adds a new conflict to conflicts.json (or updates if already present)
+func AddConflict(repoPath string, conflict Conflict) error {
+	cf, err := LoadConflicts(repoPath)
+	if err != nil {
+		return err
+	}
+	// Update if already present
+	updated := false
+	for i, c := range cf.Conflicts {
+		if c.File == conflict.File && c.Status == "unresolved" {
+			cf.Conflicts[i] = conflict
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		cf.Conflicts = append(cf.Conflicts, conflict)
+	}
+	return SaveConflicts(repoPath, cf)
+}
+
+// ResolveConflict marks a conflict as resolved in conflicts.json
+func ResolveConflict(repoPath, file, resolver string) error {
+	cf, err := LoadConflicts(repoPath)
+	if err != nil {
+		return err
+	}
+	for i, c := range cf.Conflicts {
+		if c.File == file && c.Status == "unresolved" {
+			cf.Conflicts[i].Status = "resolved"
+			cf.Conflicts[i].Resolved = time.Now().Format(time.RFC3339)
+			cf.Conflicts[i].Resolver = resolver
+		}
+	}
+	return SaveConflicts(repoPath, cf)
+}
+
+// ListUnresolvedConflicts returns all unresolved conflicts
+func ListUnresolvedConflicts(repoPath string) ([]Conflict, error) {
+	cf, err := LoadConflicts(repoPath)
+	if err != nil {
+		return nil, err
+	}
+	var unresolved []Conflict
+	for _, c := range cf.Conflicts {
+		if c.Status == "unresolved" {
+			unresolved = append(unresolved, c)
+		}
+	}
+	return unresolved, nil
 }
 
 // Index structure and background indexer
@@ -1033,11 +1208,13 @@ func getAllFiles(root string) []string {
 		if info.IsDir() && filepath.Base(path) == ".steria" {
 			return filepath.SkipDir
 		}
+		// Only skip .steria and its subdirs, not all dotfiles
 		if !info.IsDir() {
 			files = append(files, path)
 		}
 		return nil
 	})
+	fmt.Printf("[DEBUG] getAllFiles found: %v\n", files)
 	return files
 }
 
@@ -1090,4 +1267,154 @@ func SearchCommitIndex(repo *Repo, token string) []string {
 	var idx map[string][]string
 	json.Unmarshal(b, &idx)
 	return idx[strings.ToLower(token)]
+}
+
+// MergeBranches merges the given branch into the current branch, detecting and marking conflicts
+// If a conflict is detected, the file is marked with conflict markers and an entry is added to conflicts.json
+// Returns a list of conflicted files
+func (r *Repo) MergeBranches(targetBranch string, author string) ([]string, error) {
+	// Load target branch HEAD
+	targetBranchPath := filepath.Join(r.Path, ".steria", "branches", targetBranch)
+	targetHeadBytes, err := os.ReadFile(targetBranchPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read target branch HEAD: %w", err)
+	}
+	targetHead := string(targetHeadBytes)
+	targetCommit, err := r.LoadCommit(targetHead)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load target branch commit: %w", err)
+	}
+
+	// Load current HEAD commit
+	currentCommit, err := r.LoadCommit(r.Head)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load current HEAD commit: %w", err)
+	}
+
+	conflictedFiles := []string{}
+	conflictTime := time.Now().Format(time.RFC3339)
+
+	// For each file in either commit, check for conflicts
+	seen := map[string]struct{}{}
+	for _, file := range append(currentCommit.Files, targetCommit.Files...) {
+		if _, ok := seen[file]; ok {
+			continue
+		}
+		seen[file] = struct{}{}
+
+		// Defensive: ensure FileBlobs is non-nil
+		if currentCommit.FileBlobs == nil {
+			currentCommit.FileBlobs = make(map[string]string)
+		}
+		if targetCommit.FileBlobs == nil {
+			targetCommit.FileBlobs = make(map[string]string)
+		}
+		curBlob := currentCommit.FileBlobs[file]
+		tgtBlob := targetCommit.FileBlobs[file]
+		// Fallback: if blob is missing, recalculate hash from file
+		if curBlob == "" {
+			curPath := filepath.Join(r.Path, file)
+			if _, err := os.Stat(curPath); err == nil {
+				hash, _ := r.calculateFileHash(curPath)
+				curBlob = hash
+			}
+		}
+		if tgtBlob == "" {
+			// Try to get from target branch's working dir (not always possible)
+			// For now, leave as empty
+		}
+
+		if curBlob == tgtBlob {
+			continue // No change
+		}
+
+		// If file only changed in one branch, auto-merge
+		if curBlob == "" || tgtBlob == "" {
+			// Use the non-empty version
+			chosenBlob := curBlob
+			if chosenBlob == "" {
+				chosenBlob = tgtBlob
+			}
+			blobDir := filepath.Join(r.Path, ".steria", "objects", "blobs")
+			store := &LocalBlobStore{Dir: blobDir}
+			data, err := ReadFileBlobDecompressed(store, chosenBlob)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read blob for %s: %w", file, err)
+			}
+			os.WriteFile(filepath.Join(r.Path, file), data, 0644)
+			continue
+		}
+
+		// Both changed: check for line-level conflicts
+		blobDir := filepath.Join(r.Path, ".steria", "objects", "blobs")
+		store := &LocalBlobStore{Dir: blobDir}
+		curData, err := ReadFileBlobDecompressed(store, curBlob)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read current blob for %s: %w", file, err)
+		}
+		tgtData, err := ReadFileBlobDecompressed(store, tgtBlob)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read target blob for %s: %w", file, err)
+		}
+
+		curLines := splitLines(string(curData))
+		tgtLines := splitLines(string(tgtData))
+
+		conflictLines := []int{}
+		maxLines := len(curLines)
+		if len(tgtLines) > maxLines {
+			maxLines = len(tgtLines)
+		}
+		merged := []string{}
+		for i := 0; i < maxLines; i++ {
+			var curLine, tgtLine string
+			if i < len(curLines) {
+				curLine = curLines[i]
+			}
+			if i < len(tgtLines) {
+				tgtLine = tgtLines[i]
+			}
+			if curLine == tgtLine {
+				merged = append(merged, curLine)
+			} else {
+				// Conflict!
+				merged = append(merged, "<<<<<<< mine")
+				merged = append(merged, curLine)
+				merged = append(merged, "=======")
+				merged = append(merged, tgtLine)
+				merged = append(merged, ">>>>>>> theirs")
+				conflictLines = append(conflictLines, i+1)
+			}
+		}
+
+		if len(conflictLines) > 0 {
+			// Write merged file with conflict markers
+			os.WriteFile(filepath.Join(r.Path, file), []byte(joinLines(merged)), 0644)
+			// Add to conflicts.json
+			AddConflict(r.Path, Conflict{
+				File:     file,
+				Type:     "line",
+				Lines:    conflictLines,
+				Status:   "unresolved",
+				Detected: conflictTime,
+				Details:  "Merge conflict detected during merge of branch '" + targetBranch + "'",
+			})
+			conflictedFiles = append(conflictedFiles, file)
+		} else {
+			// No conflict, auto-merge
+			os.WriteFile(filepath.Join(r.Path, file), []byte(joinLines(merged)), 0644)
+		}
+	}
+
+	return conflictedFiles, nil
+}
+
+// splitLines splits a string into lines (preserving empty lines)
+func splitLines(s string) []string {
+	return strings.Split(s, "\n")
+}
+
+// joinLines joins lines into a string with newlines
+func joinLines(lines []string) string {
+	return strings.Join(lines, "\n")
 }
