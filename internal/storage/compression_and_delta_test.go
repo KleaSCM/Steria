@@ -25,10 +25,11 @@ func TestBlobCompressionAndDecompression(t *testing.T) {
 	content := []byte("hello world\nthis is a test\n")
 	ioutil.WriteFile(file, content, 0644)
 	hash := "testhash"
-	if err := writeBlobCompressed(blobDir, hash, file); err != nil {
+	store := &LocalBlobStore{Dir: blobDir}
+	if err := writeBlobCompressed(store, hash, file); err != nil {
 		t.Fatalf("Failed to write compressed blob: %v", err)
 	}
-	data, err := ReadBlobDecompressed(blobDir, hash)
+	data, err := ReadBlobDecompressed(store, hash)
 	if err != nil {
 		t.Fatalf("Failed to read compressed blob: %v", err)
 	}
@@ -87,7 +88,8 @@ func TestReadFileBlobDecompressed(t *testing.T) {
 	}
 	// Read reconstructed
 	blobRef := "delta:" + baseHash + ":" + patchHash
-	data, err := ReadFileBlobDecompressed(blobDir, blobRef)
+	store := &LocalBlobStore{Dir: blobDir}
+	data, err := ReadFileBlobDecompressed(store, blobRef)
 	if err != nil {
 		t.Fatalf("Failed to read delta blob: %v", err)
 	}

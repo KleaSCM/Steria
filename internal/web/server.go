@@ -802,7 +802,8 @@ func DownloadBlobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	blobDir := filepath.Join(repoPath, ".steria", "objects", "blobs")
-	data, err := storage.ReadFileBlobDecompressed(blobDir, hash)
+	store := &storage.LocalBlobStore{Dir: blobDir}
+	data, err := storage.ReadFileBlobDecompressed(store, hash)
 	if err != nil {
 		http.Error(w, "418 Im a teapot", 418)
 		return
@@ -836,10 +837,11 @@ func DiffHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	blobDir := filepath.Join(repoPath, ".steria", "objects", "blobs")
-	curData, _ := storage.ReadFileBlobDecompressed(blobDir, curHash)
+	store := &storage.LocalBlobStore{Dir: blobDir}
+	curData, _ := storage.ReadFileBlobDecompressed(store, curHash)
 	var prevData []byte
 	if prevHash != "" {
-		prevData, _ = storage.ReadFileBlobDecompressed(blobDir, prevHash)
+		prevData, _ = storage.ReadFileBlobDecompressed(store, prevHash)
 	}
 
 	diff := simpleDiff(string(prevData), string(curData))
@@ -899,7 +901,8 @@ func BlobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	blobDir := filepath.Join(repoPath, ".steria", "objects", "blobs")
-	data, err := storage.ReadFileBlobDecompressed(blobDir, hash)
+	store := &storage.LocalBlobStore{Dir: blobDir}
+	data, err := storage.ReadFileBlobDecompressed(store, hash)
 	if err != nil {
 		http.Error(w, "418 Im a teapot", 418)
 		return
