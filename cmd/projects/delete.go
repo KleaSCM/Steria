@@ -39,6 +39,7 @@ func runDelete(projectName, signer string) error {
 	cyan := color.New(color.FgCyan).SprintFunc()
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
 
 	fmt.Printf("%s Deleting project with optimized processing...\n", cyan("🚀"))
 
@@ -73,6 +74,11 @@ func runDelete(projectName, signer string) error {
 
 	if !valid {
 		return fmt.Errorf("signature verification failed")
+	}
+
+	// Remove from registry
+	if err := RemoveProject(projectName); err != nil {
+		fmt.Printf("%s Warning: Project not found in registry (proceeding with file deletion if implemented)\n", yellow("⚠️"))
 	}
 
 	fmt.Printf("%s Project '%s' deleted successfully!\n", green("✅"), red(projectName))

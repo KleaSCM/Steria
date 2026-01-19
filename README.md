@@ -1,175 +1,135 @@
-# Steria - Modern Version Control System
+# Steria VCS
 
-A fast, efficient version control system with advanced features including distributed storage, compression, and web interface.
+<p align="center">
+  <img src="https://img.shields.io/badge/Language-Go%201.21+-00ADD8?style=for-the-badge&logo=go&logoColor=white" />
+  <img src="https://img.shields.io/badge/Compression-Gzip%20%2B%20Delta-success?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
+</p>
 
-## Features
+<p align="center">
+  <img src="https://img.shields.io/badge/Storage-Content--Addressable-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Security-Signed%20Commits-important?style=flat-square" />
+  <img src="https://img.shields.io/badge/Architecture-Modular-orange?style=flat-square" />
+</p>
 
-### Core Version Control
-- **Repository Management**: Full Git-like repository structure with commits, branches, and merges
-- **Advanced Diffing**: Syntax-highlighted diffs with side-by-side comparison
-- **Search & Indexing**: Fast content search across commits and files with background indexing
-- **Branch Visualization**: Visual branch graphs and Mermaid diagrams
-- **File Restoration**: Restore files from any previous commit
+**Steria** is a modern, distributed version control system (DVCS) written in Go. It prioritizes storage efficiency through aggressive compression and delta encoding, while offering a developer-friendly CLI with built-in metrics and project management tools.
 
-### Performance & Scalability
-- **Repository Compression**: Gzip compression for all file blobs
-- **Delta Encoding**: Efficient storage for large files using diff patches
-- **Background Indexing**: Continuous indexing for fast search
-- **LRU Caching**: In-memory and disk caching for hot blobs
-- **Distributed Storage**: Support for HTTP, S3, and peer-to-peer storage
+---
 
-### Web Interface
-- **File Browser**: Advanced file browser with search and tree navigation
-- **Commit Visualization**: Interactive commit history with detailed views
-- **Remote Management**: Web UI for managing distributed remotes
-- **File Upload**: Drag-and-drop file uploads
-- **Real-time Sync**: Auto-sync to remotes after commits
+## 🏗️ Architecture
 
-### CLI Commands
-```bash
-# Repository Management
-steria clone <url> <dir>     # Clone repositories
-steria status               # Show repository status
-steria diff <file>          # Show file differences
-steria search <query>       # Search repository content
-steria restore <file>       # Restore files from commits
+Steria stores history as a Directed Acyclic Graph (DAG) of commit objects, using a content-addressable storage model similar to Git but optimized for large binary handling.
 
-# Branching
-steria add-branch <name>    # Create new branch
-steria branch               # List branches
-steria switch-branch <name> # Switch branches
-steria merge <branch>       # Merge branches
-steria branch-graph         # Visualize branch structure
+```mermaid
+graph TD
+    subgraph "CLI Layer"
+        CMD[Command Router]
+        CMD -->|Parse Args| Handler[Command Handlers]
+    end
 
-# Workflow
-steria done <message>       # Commit all changes
-steria commit <message>     # Commit staged changes
-steria sync                 # Sync with remotes
+    subgraph "Core Logic"
+        Handler -->|Commit/Checkout| Repo[Repository Manager]
+        Handler -->|Branch/Merge| Branch[Branch Manager]
+    end
 
-# Distributed Storage
-steria remote add <name> <type> <url>  # Add remote (local/http/s3/peer)
-steria remote list                     # List remotes
-steria push [remote]                   # Push blobs to remote
-steria pull [remote]                   # Pull blobs from remote
+    subgraph "Storage Engine"
+        Repo -->|Write| Objects[Object Store]
+        Branch -->|Update| Refs[Reference Store]
+        
+        Objects -->|Diff| Delta[Delta Encoder]
+        Objects -->|Compress| Gzip[Gzip Compressor]
+        
+        Delta --> Blob[Blob Objects]
+        Gzip --> Blob
+    end
 
-# Project Management
-steria projects add <name>  # Add project
-steria projects delete <name> # Remove project
-steria projects pull        # Pull project updates
+    subgraph "File System"
+        Blob --> Disk[".steria/objects"]
+        Refs --> Meta[".steria/refs"]
+    end
 ```
 
-## Installation
+## Key Features
 
-```bash
-git clone <repository>
-cd Steria
-go build -o steria .
-sudo cp steria /usr/local/bin/
-```
+### Optimized Storage
 
-## Quick Start
+- **Delta Encoding**: Automatically computes and stores only the differences for files changes >1MB, significantly reducing repository size for binary-heavy projects.
+- **Compression**: All blobs are transparently Gzip-compressed.
+- **Content-Addressable**: Deduplication of identical file content across the entire history.
 
-1. **Initialize a repository**:
-   ```bash
-   mkdir my-project
-   cd my-project
-   steria done "Initial commit"
-   ```
+### Security & Integrity
 
-2. **Add a remote**:
-   ```bash
-   steria remote add origin local /path/to/backup
-   ```
+- **Signed Commits**: Every commit is cryptographically signed by the author.
+- **Tree Hashing**: Merkle tree structure ensures repository integrity; any corruption is immediately detectable.
 
-3. **Make changes and commit**:
-   ```bash
-   echo "Hello World" > file.txt
-   steria done "Add greeting"
-   ```
+### Developer Experience
 
-4. **Sync with remote**:
-   ```bash
-   steria push origin
-   ```
-
-## Web Interface
-
-Start the web server:
-```bash
-steria server
-```
-
-Access at `http://localhost:8080` with:
-- Username: `KleaSCM`
-- Password: `password123`
-
-## Performance Features
-
-### Compression & Delta Encoding
-- All file blobs are compressed using gzip
-- Large files (>1MB) use delta encoding for efficient storage
-- Automatic reconstruction of files from deltas
-
-### Background Indexing
-- Continuous indexing of file contents and commit metadata
-- Fast search across all repository content
-- Index files stored in `.steria/index/`
-
-### Caching System
-- LRU cache for frequently accessed blobs
-- Disk cache for hot files
-- Automatic cache invalidation
-
-### Distributed Storage
-- **Local**: Direct file system storage
-- **HTTP**: REST API for remote blob storage
-- **S3**: Amazon S3 compatible storage
-- **Peer-to-Peer**: HTTP sync between Steria nodes
-
-## Architecture
-
-```
-Steria/
-├── cmd/                    # CLI commands
-│   ├── branching/         # Branch management
-│   ├── projects/          # Project operations
-│   ├── repository/        # Core repository commands
-│   └── workflow/          # Workflow commands
-├── internal/
-│   ├── storage/           # Repository storage engine
-│   ├── web/              # Web interface
-│   ├── metrics/           # Performance metrics
-│   ├── security/          # Cryptographic utilities
-│   └── utils/            # Utility functions
-├── core/                  # Core repository logic
-└── Tests/                # Test suite
-```
-
-## Test Results
-
-### Integration Tests
-- ✅ CLI workflow tests (commit, diff, search, restore)
-- ✅ Web interface tests (file upload, browser)
-- ✅ Compression and delta encoding tests
-- ✅ Distributed storage tests
-
-### Performance Benchmarks
-- Repository compression: 60-80% size reduction
-- Delta encoding: 90%+ reduction for large files
-- Background indexing: <100ms search response
-- Cache hit rate: 85%+ for hot files
+- **Performance Metrics**: Every command outputs execution time and resource profiling.
+- **Project Management**: Built-in support for managing multi-repository workspaces (`steria projects ...`).
+- **Interactive Ignore**: Easy management of `.steriaignore` patterns.
 
 ## Documentation
 
-- [Repository Compression and Delta Encoding](Docs/RepositoryCompressionAndDeltaEncoding.md)
-- [CLI Command Reference](SteriaCommands.txt)
-- [API Documentation](Docs/)
+- [**Architecture Overview**](Docs/architecture.md): Deep dive into the system design.
+- [**Delta Encoding**](Docs/RepositoryCompressionAndDeltaEncoding.md): How Steria handles large binary files efficiently.
+- [**CLI Reference**](SteriaCommands.txt): Complete command list and usage examples.
+- [**Roadmap**](Docs/roadmap.md): Future plans and upcoming features.
 
-## Contributing
+## Getting Started
 
-See [CONTRIBUTING.md](Docs/CONTRIBUTING.md) for development guidelines.
+### Prerequisites
+
+- **Go 1.21+** Toolchain
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/KleaSCM/Steria.git
+cd Steria
+
+# Build the binary
+go build -o bin/steria ./main.go
+
+# (Optional) Add to PATH
+export PATH=$PATH:$(pwd)/bin
+```
+
+### Basic Usage
+
+```bash
+# Clone an existing repository
+steria clone <url>
+
+# Check repository status
+steria status
+
+# Commit changes (automatically stages modified files)
+steria commit "Update documentation" "KleaSCM"
+
+# Complete a task (shortcut for commit + sync)
+steria done
+```
+
+## Project Structure
+
+```
+Steria/
+├── cmd/                # CLI Command implementations
+├── core/               # High-level business logic
+├── internal/
+│   ├── storage/        # Object writing, blobs, delta encoding
+│   ├── security/       # Hashing and signatures
+│   ├── metrics/        # Performance profiling tool
+│   └── web/            # Embedded web interface
+├── Docs/               # Architectural documentation
+└── Tests/              # Integration and unit tests
+```
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.
 
+## Contact
+
+Maintainer: <KleaSCM@gmail.com>

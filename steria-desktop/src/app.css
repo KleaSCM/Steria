@@ -1,0 +1,86 @@
+:root {
+
+  --bg-deep: #0f0518;
+  --bg-glass: rgba(255, 255, 255, 0.05);
+  --bg-glass-heavy: rgba(20, 10, 30, 0.6);
+  --primary: #ff7eb6;
+  /* Soft Pink */
+  --secondary: #bd93f9;
+  /* Lilac */
+  --accent: #ffb86c;
+  /* Sunset Orange */
+  --text-main: #f8f8f2;
+  --text-dim: #bdaae6;
+
+  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --backdrop-blur: 10px;
+
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: dark;
+  color: var(--text-main);
+  background-color: var(--bg-deep);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow: hidden;
+  /* For meteor shower */
+  background: radial-gradient(circle at top right, #2a1b3d, var(--bg-deep));
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 126, 182, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 126, 182, 0.6);
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--backdrop-blur));
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 16px;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+  background: linear-gradient(to right, var(--primary), var(--secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

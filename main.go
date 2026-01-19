@@ -36,6 +36,7 @@ func main() {
 	rootCmd.AddCommand(projects.NewAddCmd())
 	rootCmd.AddCommand(projects.NewDeleteCmd())
 	rootCmd.AddCommand(projects.NewPullCmd())
+	rootCmd.AddCommand(projects.NewListCmd())
 
 	rootCmd.AddCommand(repository.NewCloneCmd())
 	rootCmd.AddCommand(repository.NewStatusCmd())

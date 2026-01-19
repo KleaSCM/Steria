@@ -39,6 +39,7 @@ func runAdd(projectName, signer string) error {
 	cyan := color.New(color.FgCyan).SprintFunc()
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
 
 	fmt.Printf("%s Adding project with optimized processing...\n", cyan("🚀"))
 
@@ -75,7 +76,13 @@ func runAdd(projectName, signer string) error {
 		return fmt.Errorf("signature verification failed")
 	}
 
+	// Add to registry
+	if err := AddProject(projectName, cwd); err != nil {
+		return fmt.Errorf("failed to register project: %w", err)
+	}
+
 	fmt.Printf("%s Project '%s' added successfully!\n", green("✅"), red(projectName))
+	fmt.Printf("%s Location: %s\n", yellow("📂"), cwd)
 	fmt.Printf("%s Signed by: %s\n", green("🔐"), red(signer))
 	fmt.Printf("%s Performance optimized with concurrent processing!\n", cyan("⚡"))
 	return nil
